@@ -1,0 +1,24 @@
+//
+//  ContentView.swift
+//  Arc
+//
+//  Created by Ziyan Nadeem on 23/8/2026.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        VStack {
+            Image(systemName: "globe")
+                .imageScale(.large)
+                .foregroundStyle(.tint)
+            Text("Hello, tld!")
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    ContentView()
+}
