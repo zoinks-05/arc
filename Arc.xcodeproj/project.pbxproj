@@ -16,6 +16,11 @@
 			path = Arc;
 			sourceTree = "<group>";
 		};
+		1E5AB31E3041220200E625B7 /* Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -34,6 +39,7 @@
 			children = (
 				1E5AB2D3303ACFB600E625B7 /* Arc */,
 				1E5AB2D2303ACFB600E625B7 /* Products */,
+				1E5AB31E3041220200E625B7 /* Tests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -62,6 +68,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				1E5AB2D3303ACFB600E625B7 /* Arc */,
+				1E5AB31E3041220200E625B7 /* Tests */,
 			);
 			name = Arc;
 			packageProductDependencies = (
