@@ -62,7 +62,7 @@ struct ContentView: View {
         errorMessage = ""
         
         do {
-            let result = try await APIService.shared.searchMovies(
+            let result = try await APIService.shared.searchContent(
                 query: movieTitle
             )
             

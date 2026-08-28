@@ -48,14 +48,20 @@ final class APIService {
             as? [String: Any] ?? [:]
     }
     
-    func searchMovies(query: String) async throws -> [String: Any] {
+    func searchContent(query: String, type: String = "movie") async throws -> [String: Any] {
         
         let q = query.addingPercentEncoding(
             withAllowedCharacters: .urlQueryAllowed
         ) ?? query
         
         return try await fetch(
-            "\(tmdbBaseURL)/search/movie?query=\(q)"
+            "\(tmdbBaseURL)/search/\(type)?query=\(q)"
+        )
+    }
+    
+    func fetchContentDetails(ContentID:Int, type: String = "movie") async throws -> [String: Any] {
+        return try await fetch(
+            "\(tmdbBaseURL)/\(type)/\(ContentID)"
         )
     }
 }
