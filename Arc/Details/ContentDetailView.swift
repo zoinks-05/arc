@@ -80,15 +80,26 @@ extension ContentDetailView {
     func header() -> some View {
         HStack(alignment: .bottom, spacing: 12) {
             // Poster stub (replace with AsyncImage and TMDB URL later)
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 120, height: 180)
-                .overlay(
-                    Text("Poster")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                )
-                .cornerRadius(8)
+            AsyncImage(url: posterUrl) { state in
+                switch state {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+
+                case .failure:
+                    Color.gray.opacity(0.3)
+
+                case .empty:
+                    ProgressView()
+
+                @unknown default:
+                    Color.gray.opacity(0.3)
+                }
+            }
+            .frame(width: 120, height: 180)
+            .clipped()
+            .cornerRadius(8)
             
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
@@ -147,26 +158,27 @@ extension ContentDetailView {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             // Backdrop stub (replace with AsyncImage and TMDB URL later)
-            ZStack {
-                Rectangle()
-                    .fill(LinearGradient(
-                        gradient: Gradient(colors: [Color.black.opacity(0.2), Color.black]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
-                Text("Backdrop")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-                    .offset(y: -60)
+            AsyncImage(url: BackDropUrl) { state in
+                switch state {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+
+                case .failure:
+                    Color.gray.opacity(0.3)
+
+                case .empty:
+                    ProgressView()
+
+                @unknown default:
+                    Color.gray.opacity(0.3)
+                }
             }
+            .frame(width: 480, height: 240)
+
             .clipped()
-            .overlay(
-                LinearGradient(
-                    colors: [Color.clear, Color.black.opacity(0.9)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .cornerRadius(8)
         )
     }
     
@@ -532,6 +544,38 @@ extension ContentDetailView {
     
     var primaryCompanyOrNetwork: String {
         companyOrNetworkNames.first ?? "Unknown"
+    }
+    
+    var posterUrl: URL? {
+        guard let path = content["poster_path"] as? String else {
+            return nil
+        }
+        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
+    }
+    
+    var BackDropUrl: URL? {
+        guard let path = content["backdrop_path"] as? String else {
+            return nil
+        }
+        return URL(string: "https://image.tmdb.org/t/p/w780\(path)")
+    }
+    
+    // Fix: cast is an array; use the first cast member (or adjust as needed)
+    var profileUrl: URL? {
+        guard let first = cast.first,
+              let path = first["profile_path"] as? String else {
+            return nil
+        }
+        return URL(string: "https://image.tmdb.org/t/p/w185\(path)")
+    }
+    
+    // Fix: related is an array; use the first related item (or adjust as needed)
+    var relatedUrl: URL? {
+        guard let first = related.first,
+              let path = first["poster_path"] as? String else {
+            return nil
+        }
+        return URL(string: "https://image.tmdb.org/t/p/w300\(path)")
     }
 }
 
