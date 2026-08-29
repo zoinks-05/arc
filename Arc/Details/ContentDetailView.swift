@@ -8,9 +8,8 @@
 import SwiftUI
 
 struct ContentDetailView: View {
-    
-    let contentID: Int
-    let type: String // "movie" or "tv"
+    @State var contentID: Int
+    @State var type: String // "movie" or "tv"
     
     // Core data (dictionary to match current APIService)
     @State private var content: [String: Any] = [:]
@@ -78,108 +77,100 @@ extension ContentDetailView {
     // Header with poster, title/name, basic actions, and backdrop background
     @ViewBuilder
     func header() -> some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            // Poster stub (replace with AsyncImage and TMDB URL later)
-            AsyncImage(url: posterUrl) { state in
-                switch state {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-
-                case .failure:
-                    Color.gray.opacity(0.3)
-
-                case .empty:
-                    ProgressView()
-
-                @unknown default:
-                    Color.gray.opacity(0.3)
-                }
-            }
-            .frame(width: 120, height: 180)
-            .clipped()
-            .cornerRadius(8)
-            
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Text(displayTitle)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    
-                    Spacer()
-                    
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    .sheet(isPresented: $showAddSheet) {
-                        addToWatchlistSheet()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottomLeading) {
+                // Backdrop
+                AsyncImage(url: imageURL(path: content["backdrop_path"] as? String)) { state in
+                    switch state {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: 250 + geometry.safeAreaInsets.top)
+                            .clipped()
+                    case .failure:
+                        Color.gray.opacity(0.3)
+                    case .empty:
+                        ProgressView()
+                    @unknown default:
+                        Color.gray.opacity(0.3)
                     }
                 }
+                .frame(height: 250 + geometry.safeAreaInsets.top)
+                .ignoresSafeArea(edges: .top)
                 
-                HStack(spacing: 10) {
-                    // Score stub (TMDB vote_average)
-                    let score = (content["vote_average"] as? Double) ?? 0.0
-                    Text(String(format: "%.1f", score))
-                        .font(.caption)
-                        .foregroundColor(.white)
-                    
-                    // Studio/Network stub
-                    Text(primaryCompanyOrNetwork)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.9))
-                        .lineLimit(1)
-                    
-                    Button {
-                        showMoreInfo = true
-                    } label: {
-                        Text("More Info")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .underline()
+                // Overlay: poster + info
+                HStack(alignment: .bottom, spacing: 14) {
+                    // Poster
+                    AsyncImage(url: imageURL(path: content["poster_path"] as? String)) { state in
+                        switch state {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure:
+                            Color.gray.opacity(0.3)
+                        case .empty:
+                            ProgressView()
+                        @unknown default:
+                            Color.gray.opacity(0.3)
+                        }
                     }
-                    .sheet(isPresented: $showMoreInfo) {
-                        moreInfoSheet()
-                            .presentationDetents([.medium, .large])
-                    }
+                    .frame(width: 120, height: 180)
+                    .clipped()
+                    .cornerRadius(10)
+                    .shadow(radius: 12, y: 8)
                     
-                    Spacer()
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Text(displayTitle)
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Spacer()
+                            Button {
+                                showAddSheet = true
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .sheet(isPresented: $showAddSheet) {
+                                addToWatchlistSheet()
+                            }
+                        }
+                        HStack(spacing: 10) {
+                            let score = (content["vote_average"] as? Double) ?? 0.0
+                            Text(String(format: "%.1f", score))
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            Text(primaryCompanyOrNetwork)
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Button {
+                                showMoreInfo = true
+                            } label: {
+                                Text("More Info")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .underline()
+                            }
+                            .sheet(isPresented: $showMoreInfo) {
+                                moreInfoSheet()
+                                    .presentationDetents([.medium, .large])
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(.bottom, 18)
                 }
+                .padding(.leading, 20)
+                .padding(.trailing, 16)
+                .padding(.bottom, geometry.safeAreaInsets.top > 0 ? 22 : 8)
             }
+            .frame(height: geometry.safeAreaInsets.top)
         }
-        .padding()
-        .frame(height: 250)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            // Backdrop stub (replace with AsyncImage and TMDB URL later)
-            AsyncImage(url: BackDropUrl) { state in
-                switch state {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-
-                case .failure:
-                    Color.gray.opacity(0.3)
-
-                case .empty:
-                    ProgressView()
-
-                @unknown default:
-                    Color.gray.opacity(0.3)
-                }
-            }
-            .frame(width: 480, height: 240)
-
-            .clipped()
-            .cornerRadius(8)
-        )
+        .frame(height: 250) // Makes header take up space in layout
     }
     
     // Main card view
@@ -221,15 +212,27 @@ extension ContentDetailView {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             // Profile image stub
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 80, height: 120)
-                                .overlay(
-                                    Text("Img")
-                                        .foregroundColor(.secondary)
-                                        .font(.caption2)
-                                )
-                                .cornerRadius(8)
+                            AsyncImage(url: imageURL(path: person["profile_path"] as? String)) { state in
+                                switch state {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+
+                                case .failure:
+                                    Color.gray.opacity(0.3)
+
+                                case .empty:
+                                    ProgressView()
+
+                                @unknown default:
+                                    Color.gray.opacity(0.3)
+                                }
+                            }
+                            .frame(width: 80, height: 120)
+
+                            .clipped()
+                            .cornerRadius(8)
                             
                             Text(name)
                                 .font(.caption)
@@ -305,32 +308,46 @@ extension ContentDetailView {
                             ? (item["title"] as? String ?? "N/A")
                             : (item["name"] as? String ?? "N/A")
                         let mediaType = item["media_type"] as? String ?? type
+                        let itemID = item["id"] as? Int ?? 0
                         
-                        VStack(alignment: .leading, spacing: 6) {
-                            // Poster stub
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 100, height: 150)
-                                .overlay(
-                                    Text("Img")
-                                        .foregroundColor(.secondary)
-                                        .font(.caption2)
-                                )
+                        NavigationLink(
+                            destination: ContentDetailView(contentID: itemID, type: mediaType)
+                        ) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                // Poster
+                                AsyncImage(url: imageURL(path: item["poster_path"] as? String)) { state in
+                                    switch state {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                    case .failure:
+                                        Color.gray.opacity(0.3)
+                                    case .empty:
+                                        ProgressView()
+                                    @unknown default:
+                                        Color.gray.opacity(0.3)
+                                    }
+                                }
+                                .frame(width: 120, height: 165)
+                                .clipped()
                                 .cornerRadius(8)
-                            
-                            Text(title)
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                            
-                            Text(mediaType.uppercased())
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                
+                                Text(title)
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                
+                                Text(mediaType.uppercased())
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 110)
+                            .padding(10)
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(12)
                         }
-                        .frame(width: 110)
-                        .padding(10)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(12)
+                        .buttonStyle(PlainButtonStyle()) // Prevents the blue highlight
                     }
                 }
             }
@@ -499,15 +516,20 @@ extension ContentDetailView {
                 ContentID: contentID,
                 type: type
             )
-            
-            // Stub cast and related with empty arrays for now.
-            // Replace with real API calls to:
-            // - "\(tmdbBaseURL)/\(type)/\(contentID)/credits"
-            // - "\(tmdbBaseURL)/\(type)/\(contentID)/recommendations"
-            // Example: cast = result["cast"] as? [[String: Any]] ?? []
-            // Example: related = result["results"] as? [[String: Any]] ?? []
-            cast = []
-            related = []
+
+            // Fetch cast and related content using correct keys
+            let castResult = try await APIService.shared.fetchContentCredits(
+                ContentID: contentID,
+                type: type
+            )
+            cast = castResult["cast"] as? [[String: Any]] ?? []
+
+            let relatedResult = try await APIService.shared.fetchContentRecommendations(
+                ContentID: contentID,
+                type: type
+            )
+            related = relatedResult["results"] as? [[String: Any]] ?? []
+
         } catch {
             print("Error loading content: \(error)")
         }
@@ -546,39 +568,32 @@ extension ContentDetailView {
         companyOrNetworkNames.first ?? "Unknown"
     }
     
-    var posterUrl: URL? {
-        guard let path = content["poster_path"] as? String else {
+    
+    func imageURL(path: String?, width: String = "w500") -> URL?{
+        guard let path, !path.isEmpty else {
             return nil
         }
-        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
+        return URL(string: "https://image.tmdb.org/t/p/\(width)\(path)")
     }
     
-    var BackDropUrl: URL? {
-        guard let path = content["backdrop_path"] as? String else {
-            return nil
+    func updateContentView(newID: Int, newType: String) {
+        contentID = newID
+        type = newType
+        
+        content = [:]
+        cast = []
+        related = []
+        
+        Task {
+            await loadAll()
         }
-        return URL(string: "https://image.tmdb.org/t/p/w780\(path)")
     }
-    
-    // Fix: cast is an array; use the first cast member (or adjust as needed)
-    var profileUrl: URL? {
-        guard let first = cast.first,
-              let path = first["profile_path"] as? String else {
-            return nil
-        }
-        return URL(string: "https://image.tmdb.org/t/p/w185\(path)")
-    }
-    
-    // Fix: related is an array; use the first related item (or adjust as needed)
-    var relatedUrl: URL? {
-        guard let first = related.first,
-              let path = first["poster_path"] as? String else {
-            return nil
-        }
-        return URL(string: "https://image.tmdb.org/t/p/w300\(path)")
-    }
+
 }
 
 #Preview {
-    ContentDetailView(contentID: 157336, type: "movie")
+    NavigationStack {
+        ContentDetailView(contentID: 157336, type: "movie")
+    }
+    .navigationBarBackButtonHidden(false)
 }

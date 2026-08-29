@@ -15,43 +15,46 @@ struct ContentView: View {
     @State private var errorMessage = ""
     
     var body: some View {
-        
-        VStack(spacing: 20) {
-            
-            TextField("Enter movie", text: $movieTitle)
-                .textFieldStyle(.roundedBorder)
-            
-            Button("Search TMDB") {
-                Task {
-                    await searchMovie()
+        NavigationStack {
+            VStack(spacing: 20) {
+                TextField("Enter movie", text: $movieTitle)
+                    .textFieldStyle(.roundedBorder)
+                
+                Button("Search TMDB") {
+                    Task {
+                        await searchMovie()
+                    }
                 }
-            }
-            
-            if isLoading {
-                ProgressView()
-            }
-            
-            if !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-            }
-            
-            List(movieResults.indices, id: \.self) { index in
                 
-                let movie = movieResults[index]
+                if isLoading {
+                    ProgressView()
+                }
                 
-                VStack(alignment: .leading) {
-                    Text(movie["title"] as? String ?? "Unknown")
-                        .font(.headline)
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                }
+                
+                List(movieResults.indices, id: \.self) { index in
+                    let movie = movieResults[index]
+                    let movieID = movie["id"] as? Int ?? 0
                     
-                    Text(movie["release_date"] as? String ?? "Unknown")
-                        .font(.caption)
+                    NavigationLink(
+                        destination: ContentDetailView(contentID: movieID, type: "movie")
+                    ) {
+                        VStack(alignment: .leading) {
+                            Text(movie["title"] as? String ?? "Unknown")
+                                .font(.headline)
+                            
+                            Text(movie["release_date"] as? String ?? "Unknown")
+                                .font(.caption)
+                        }
+                    }
                 }
             }
+            .padding()
         }
-        .padding()
     }
-    
     func searchMovie() async {
         
         guard !movieTitle.isEmpty else {

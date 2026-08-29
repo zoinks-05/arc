@@ -64,4 +64,17 @@ final class APIService {
             "\(tmdbBaseURL)/\(type)/\(ContentID)"
         )
     }
+    
+    func fetchContentCredits(ContentID:Int, type: String = "movie") async throws -> [String: Any] {
+        return try await fetch(
+            "\(tmdbBaseURL)/\(type)/\(ContentID)/credits"
+        )
+    }
+
+    func fetchContentRecommendations(ContentID:Int, type: String = "movie") async throws -> [String: Any] {
+        return try await fetch(
+            "\(tmdbBaseURL)/\(type)/\(ContentID)/recommendations"
+        )
+    }
+
 }
