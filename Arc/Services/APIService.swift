@@ -76,5 +76,12 @@ final class APIService {
             "\(tmdbBaseURL)/\(type)/\(ContentID)/recommendations"
         )
     }
+    
+    func imageURL(path: String?, width: String = "w500") -> URL?{
+        guard let path, !path.isEmpty else {
+            return nil
+        }
+        return URL(string: "https://image.tmdb.org/t/p/\(width)\(path)")
+    }
 
 }

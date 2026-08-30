@@ -80,7 +80,7 @@ extension ContentDetailView {
         GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
                 // Backdrop
-                AsyncImage(url: imageURL(path: content["backdrop_path"] as? String)) { state in
+                AsyncImage(url: APIService.shared.imageURL(path: content["backdrop_path"] as? String)) { state in
                     switch state {
                     case .success(let image):
                         image
@@ -102,7 +102,7 @@ extension ContentDetailView {
                 // Overlay: poster + info
                 HStack(alignment: .bottom, spacing: 14) {
                     // Poster
-                    AsyncImage(url: imageURL(path: content["poster_path"] as? String)) { state in
+                    AsyncImage(url: APIService.shared.imageURL(path: content["poster_path"] as? String)) { state in
                         switch state {
                         case .success(let image):
                             image.resizable().scaledToFill()
@@ -212,7 +212,7 @@ extension ContentDetailView {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             // Profile image stub
-                            AsyncImage(url: imageURL(path: person["profile_path"] as? String)) { state in
+                            AsyncImage(url: APIService.shared.imageURL(path: person["profile_path"] as? String)) { state in
                                 switch state {
                                 case .success(let image):
                                     image
@@ -315,7 +315,7 @@ extension ContentDetailView {
                         ) {
                             VStack(alignment: .leading, spacing: 6) {
                                 // Poster
-                                AsyncImage(url: imageURL(path: item["poster_path"] as? String)) { state in
+                                AsyncImage(url: APIService.shared.imageURL(path: item["poster_path"] as? String)) { state in
                                     switch state {
                                     case .success(let image):
                                         image
@@ -566,14 +566,6 @@ extension ContentDetailView {
     
     var primaryCompanyOrNetwork: String {
         companyOrNetworkNames.first ?? "Unknown"
-    }
-    
-    
-    func imageURL(path: String?, width: String = "w500") -> URL?{
-        guard let path, !path.isEmpty else {
-            return nil
-        }
-        return URL(string: "https://image.tmdb.org/t/p/\(width)\(path)")
     }
     
     func updateContentView(newID: Int, newType: String) {
