@@ -22,13 +22,18 @@ struct SearchView: View {
             VStack(spacing: 20) {
                 HStack {
                     TextField("Search", text: $Title)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .glassEffect(.regular, in: Capsule())
                     Spacer()
                     Button {
                         type = (type == "movie" ? "tv" : "movie")
                     } label: {
                         Image(systemName: type == "movie" ? "film" : "tv")
                             .foregroundColor(.primary)
+                            .padding(10)
+                            .glassEffect(.regular, in:Circle())
                     }
                     Button {
                         Task {
@@ -37,6 +42,8 @@ struct SearchView: View {
                     } label: {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.primary)
+                            .padding(10)
+                            .glassEffect(.regular, in:Circle())
                     }
                 }
                 
