@@ -25,10 +25,8 @@ struct SearchView: View {
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color(.secondarySystemBackground))
-                        )
+                        .glassEffect(.regular, in: Capsule())
+                    
                     Spacer()
                     Button {
                         type = (type == "movie" ? "tv" : "movie")
@@ -36,9 +34,7 @@ struct SearchView: View {
                         Image(systemName: type == "movie" ? "film" : "tv")
                             .foregroundColor(.primary)
                             .padding(10)
-                            .background(
-                                Circle().fill(Color(.secondarySystemBackground))
-                            )
+                            .glassEffect(.regular, in: Circle())
                     }
                     Button {
                         Task {
@@ -48,9 +44,7 @@ struct SearchView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.primary)
                             .padding(10)
-                            .background(
-                                Circle().fill(Color(.secondarySystemBackground))
-                            )
+                            .glassEffect(.regular, in: Circle())
                     }
                 }
                 
