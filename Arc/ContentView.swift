@@ -9,78 +9,27 @@ import SwiftUI
 
 struct ContentView: View {
     
-    @State private var movieTitle = ""
-    @State private var movieResults: [[String: Any]] = []
-    @State private var isLoading = false
-    @State private var errorMessage = ""
-    
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                TextField("Enter movie", text: $movieTitle)
-                    .textFieldStyle(.roundedBorder)
-                
-                Button("Search TMDB") {
-                    Task {
-                        await searchMovie()
-                    }
-                }
-                
-                if isLoading {
-                    ProgressView()
-                }
-                
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                }
-                
-                List(movieResults.indices, id: \.self) { index in
-                    let movie = movieResults[index]
-                    let movieID = movie["id"] as? Int ?? 0
-                    
-                    NavigationLink(
-                        destination: ContentDetailView(contentID: movieID, type: "movie")
-                    ) {
-                        VStack(alignment: .leading) {
-                            Text(movie["title"] as? String ?? "Unknown")
-                                .font(.headline)
-                            
-                            Text(movie["release_date"] as? String ?? "Unknown")
-                                .font(.caption)
-                        }
-                    }
-                }
-            }
-            .padding()
-        }
-    }
-    func searchMovie() async {
-        
-        guard !movieTitle.isEmpty else {
-            return
-        }
-        
-        isLoading = true
-        errorMessage = ""
-        
-        do {
-            let result = try await APIService.shared.searchContent(
-                query: movieTitle
-            )
+        TabView {
             
-            movieResults = result["results"] as? [[String: Any]] ?? []
+            Text("Home")
+                .tabItem {
+                    Label("Home", systemImage: "house")
+                }
             
-            print("TMDB Results:", movieResults.count)
+            ScrollPageView(arcs: ArcModel.sampleData)
+                .tabItem {
+                    Label("Feed", systemImage: "play.rectangle")
+                }
             
-        } catch {
-            errorMessage = error.localizedDescription
-            print("TMDB Error:", error)
+            Text("Profile")
+                .tabItem {
+                    Label("Profile", systemImage: "person")
+                }
         }
-        
-        isLoading = false
     }
 }
+
 #Preview {
     ContentView()
 }
