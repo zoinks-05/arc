@@ -16,12 +16,15 @@ struct ScrollPageView: View {
     
     // Strongly-typed feed using ArcModel sample data
     @State var arcs : [ArcModel]
+    @State var comments : [CommentModel]
+    @State var replies : [ReplyModel]
     
     // Paging state
     @State private var scrollPosition: Int?
     @State private var showDetail = false
     @State private var showRecommendation = false
     @State private var showCreateArc = false
+    @State private var showComments = false
     
     // Lightweight details cache per Arc (title/name + poster_path)
     // Key by arc.id to avoid collisions if contentID repeats across types.
@@ -30,6 +33,10 @@ struct ScrollPageView: View {
     // Only show arcs that match the currently selected content type
     private var filteredArcs: [ArcModel] {
         arcs.filter { $0.contentType == type }
+    }
+    
+    private func commentsForArc(_ arc: ArcModel) -> [CommentModel] {
+        comments.filter { $0.arcID == arc.id}
     }
     
     private var currentArc: ArcModel? {
@@ -65,9 +72,9 @@ struct ScrollPageView: View {
     }
     
     // Computed so we can call instance helpers (self is available)
-    private let toggleArcLike = LikesUseCase()
+    private let toggleArcLike = ArcLikesUseCase()
     
-    private let toggleRepostUseCase = RepostUseCase()
+    private let toggleRepostUseCase = ArcRepostUseCase()
         
     var body: some View {
         NavigationStack {
@@ -151,6 +158,12 @@ struct ScrollPageView: View {
                         }
                     }
                 }
+                .sheet(isPresented: $showComments){
+                    if let arc = currentArc{
+                        CommentComponet(description: arc.desription, createdAt: arc.createdAt, comments: commentsForArc(arc), replies: replies)
+                    }
+                }
+                .presentationDetents([.medium, .large])
             }
         }
     }
@@ -254,7 +267,7 @@ struct ScrollPageView: View {
                     // SocialFeatures
                     VStack {
                         scrollPage_social_button(image: arc.hasLiked ? "heart.fill" :  "heart" , usecase: .like, arcID: arc.id, count: arc.likes)
-                        scrollPage_social_button(image: "message")
+                        scrollPage_social_button(image: "message", present: $showComments)
                         scrollPage_social_button(
                             image: arc.hasReposted ? "repeat.1" : "repeat", usecase: .repost, arcID: arc.id, count: arc.reposts
                         )
@@ -378,42 +391,28 @@ extension ScrollPageView {
         }
     }
     
-    func scrollPage_social_button(tab: String? = nil, image: String, conditional: Binding<Bool>? = nil, usecase: SocialUseCases? = nil, arcID: UUID? = nil, count: Int = 0) -> some View {
-        VStack{
+    func scrollPage_social_button(tab: String? = nil, image: String, conditional: Binding<Bool>? = nil, usecase: SocialUseCases? = nil, arcID: UUID? = nil, count: Int = 0, present: Binding<Bool>? = nil) -> some View {
+        VStack {
             Button {
                 withAnimation(.bouncy()) {
-                    if let tab {
-                        selectedTab = tab
-                    }
-                    if let conditional{
-                        conditional.wrappedValue.toggle()
-                    }
-                    
+                    if let tab { selectedTab = tab }
+                    if let conditional { conditional.wrappedValue.toggle() }
+                    present?.wrappedValue = true
                     switch usecase {
                     case .like:
-                        if let arcID {
-                            toggleArcLike.execute(arcID: arcID, arcs: &arcs)
-                        }
+                        if let arcID { toggleArcLike.execute(arcID: arcID, arcs: &arcs) }
                     case .repost:
-                        if let arcID {
-                            toggleRepostUseCase.execute(arcID: arcID, arcs: &arcs)
-                        }
-                        break
-                        
-                    case .none:
-                        break
-                    case .some(.view):
+                        if let arcID { toggleRepostUseCase.execute(arcID: arcID, arcs: &arcs) }
+                    case .none, .some(.view):
                         break
                     }
                 }
-                
             } label: {
                 Image(systemName: image)
                     .font(.title)
                     .foregroundColor(.white)
                     .padding(3)
             }
-            
             if count > 0 {
                 Text(String(formatSocial(count: count)))
             }
@@ -468,5 +467,13 @@ extension ScrollPageView {
 }
 
 #Preview {
-    ScrollPageView(arcs: ArcModel.sampleData)
+    let arcs = ArcModel.sampleData
+    let comments = CommentModel.sampleData(from: arcs)
+    let replies = ReplyModel.sampleData(from: comments)
+
+    ScrollPageView(
+        arcs: arcs,
+        comments: comments,
+        replies: replies
+    )
 }

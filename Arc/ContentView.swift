@@ -17,7 +17,7 @@ struct ContentView: View {
                     Label("Home", systemImage: "house")
                 }
             
-            ScrollPageView(arcs: ArcModel.sampleData)
+            //ScrollPageView(arcs: ArcModel.sampleData)
                 .tabItem {
                     Label("Feed", systemImage: "play.rectangle")
                 }
