@@ -10,16 +10,18 @@ import Foundation
 final class ArcRepostUseCase {
     func execute(
         arcID: UUID,
-        arcs: inout [ArcModel]
+        dataStore: DummyDataStore
     ) {
-        guard let i = arcs.firstIndex(where: { $0.id == arcID}) else { return }
+        guard let i = dataStore.arcs.firstIndex(where: { $0.id == arcID}) else { return }
         
-        arcs[i].hasReposted.toggle()
+        dataStore.arcs[i].hasReposted.toggle()
         
-        if arcs[i].hasReposted {
-            arcs[i].reposts += 1
+        if dataStore.arcs[i].hasReposted {
+            dataStore.arcs[i].reposts += 1
         } else {
-            arcs[i].reposts -= 1
+            dataStore.arcs[i].reposts -= 1
         }
+        
+        dataStore.saveData()
     }
 }

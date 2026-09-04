@@ -8,18 +8,25 @@
 import Foundation
 
 final class CommentLikesUseCase {
+
     func execute(
         commentID: UUID,
-        comments: inout [CommentModel]
+        dataStore: DummyDataStore
     ) {
-        guard let i = comments.firstIndex(where: { $0.id == commentID}) else { return }
-        
-        comments[i].hasLiked.toggle()
-        
-        if comments[i].hasLiked {
-            comments[i].likes += 1
-        } else {
-            comments[i].likes -= 1
+        guard let i = dataStore.comments.firstIndex(
+            where: { $0.id == commentID }
+        ) else {
+            return
         }
+
+        dataStore.comments[i].hasLiked.toggle()
+
+        if dataStore.comments[i].hasLiked {
+            dataStore.comments[i].likes += 1
+        } else {
+            dataStore.comments[i].likes -= 1
+        }
+
+        dataStore.saveData()
     }
 }

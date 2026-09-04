@@ -9,6 +9,8 @@ import SwiftUI
 
 struct ContentView: View {
     
+    @State private var dataStore = DummyDataStore()
+    
     var body: some View {
         TabView {
             
@@ -17,17 +19,24 @@ struct ContentView: View {
                     Label("Home", systemImage: "house")
                 }
             
-            //ScrollPageView(arcs: ArcModel.sampleData)
-                .tabItem {
-                    Label("Feed", systemImage: "play.rectangle")
-                }
+            ScrollPageView(
+                dataStore: dataStore
+            )
+            .tabItem {
+                Label("Feed", systemImage: "play.rectangle")
+            }
             
             Text("Profile")
                 .tabItem {
                     Label("Profile", systemImage: "person")
                 }
         }
+        .onAppear {
+            dataStore.loadData()
+        }
+
     }
+    
 }
 
 #Preview {

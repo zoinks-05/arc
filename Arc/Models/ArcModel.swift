@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ArcModel: Identifiable {
+struct ArcModel: Identifiable, Codable {
     
     let id: UUID
     let userID: UUID

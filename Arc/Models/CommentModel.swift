@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct CommentModel: Identifiable {
+struct CommentModel: Identifiable, Codable {
     
     let id: UUID
     let arcID: UUID

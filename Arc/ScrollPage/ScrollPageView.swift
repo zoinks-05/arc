@@ -8,41 +8,60 @@
 import SwiftUI
 
 struct ScrollPageView: View {
-    
+
     @State private var selectedTab = "movie"
     @State private var prevTab: String?
     @State private var type = "movie"
     @State private var showSpoiler = false
-    
-    // Strongly-typed feed using ArcModel sample data
-    @State var arcs : [ArcModel]
-    @State var comments : [CommentModel]
-    @State var replies : [ReplyModel]
-    
-    // Paging state
+    @State private var commentCounts = 0
+
+    @State var dataStore: DummyDataStore
+
     @State private var scrollPosition: Int?
     @State private var showDetail = false
     @State private var showRecommendation = false
     @State private var showCreateArc = false
     @State private var showComments = false
-    
-    // Lightweight details cache per Arc (title/name + poster_path)
-    // Key by arc.id to avoid collisions if contentID repeats across types.
+
     @State private var detailsCache: [UUID: [String: Any]] = [:]
-    
-    // Only show arcs that match the currently selected content type
+
+    private var users: [UserModel] {
+        dataStore.users
+    }
+
+    private var arcs: [ArcModel] {
+        dataStore.arcs
+    }
+
+    private var comments: [CommentModel] {
+        dataStore.comments
+    }
+
+    private var replies: [ReplyModel] {
+        dataStore.replies
+    }
+
     private var filteredArcs: [ArcModel] {
-        arcs.filter { $0.contentType == type }
+        dataStore.arcs.filter { $0.contentType == type }
     }
     
-    private func commentsForArc(_ arc: ArcModel) -> [CommentModel] {
-        comments.filter { $0.arcID == arc.id}
+    private func commentsForArcCount(_ arc: ArcModel) -> Int {
+        var res = 0
+        let filtered = comments.filter { $0.arcID == arc.id}
+        for reply in replies {
+            if filtered.contains(where: { $0.id == reply.commentID }) {
+                res += 1
+            }
+        }
+        return res + filtered.count
+    }
+    
+    private func userDetails(_ arc: ArcModel) -> UserModel? {
+        users.first { $0.id == arc.userID }
     }
     
     private var currentArc: ArcModel? {
-        // If nothing to show, return nil
         guard !filteredArcs.isEmpty else { return nil }
-        // Use scrollPosition if valid, else fall back to first
         guard let scrollPosition,
               filteredArcs.indices.contains(scrollPosition) else {
             return filteredArcs.first
@@ -116,12 +135,10 @@ struct ScrollPageView: View {
                     
                     if selectedTab == "movie" || selectedTab == "tv" {
                         if filteredArcs.isEmpty {
-                            // Safe fallback when no arcs for selected type
                             Text("No items for \(type.uppercased())")
                                 .font(.headline)
                                 .padding()
                         } else {
-                            // Paging feed — TikTok style
                             GeometryReader { geo in
                                 ScrollView(.vertical, showsIndicators: false) {
                                     LazyVStack(spacing: 0) {
@@ -142,10 +159,9 @@ struct ScrollPageView: View {
                                 .scrollTargetBehavior(.paging)
                                 .scrollPosition(id: $scrollPosition)
                             }
-                            .id(type) // fresh feed identity when switching movie <-> tv
+                            .id(type)
                             .transition(.scale .combined(with: .opacity))
                             .onChange(of: scrollPosition) { _, _ in
-                                // Preload current arc’s details for backdrop/title
                                 if let arc = currentArc {
                                     Task { await loadDetailsIfNeeded(for: arc) }
                                 }
@@ -158,12 +174,25 @@ struct ScrollPageView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $showComments){
-                    if let arc = currentArc{
-                        CommentComponet(description: arc.desription, createdAt: arc.createdAt, comments: commentsForArc(arc), replies: replies)
-                    }
+            }
+            // Sheet must apply detents on the sheet content
+            .sheet(isPresented: $showComments) {
+                if let arc = currentArc {
+                    CommentComponet(
+                        description: arc.desription,
+                        createdAt: arc.createdAt,
+                        dataStore: dataStore,
+                        arcID: arc.id
+                    )
+                    .presentationDetents([.medium, .large], selection: .constant(.medium))
+                    .presentationDragIndicator(.visible)
+                } else {
+                    // Fallback content
+                    Text("No comments")
+                        .padding()
+                        .presentationDetents([.fraction(0.35), .large], selection: .constant(.fraction(0.35)))
+                        .presentationDragIndicator(.visible)
                 }
-                .presentationDetents([.medium, .large])
             }
         }
     }
@@ -181,6 +210,8 @@ struct ScrollPageView: View {
             return "Loading..."
         }()
         let posterPath = details?["poster_path"] as? String
+        let user = users.first { $0.id == arc.userID }
+        let localCommentCount = commentsForArcCount(arc)
         
         VStack(spacing: 0) {
             Text(title)
@@ -202,16 +233,25 @@ struct ScrollPageView: View {
                         // ArcCard
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text(arc.sentiment)
-                                    .font(.title.bold())
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 5)
-                                    .glassEffect(.regular, in: Capsule())
+                                if let user {
+                                    Text("\(user.username) \(arc.sentiment)")
+                                        .font(.title.bold())
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 5)
+                                        .glassEffect(.regular, in: Capsule())
+                                } else {
+                                    Text(arc.sentiment)
+                                        .font(.title.bold())
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 5)
+                                        .glassEffect(.regular, in: Capsule())
+                                }
                                 Spacer()
                             }
-                            
                             GeometryReader { geo in
                                 VStack(spacing: 0) {
                                     VStack(alignment: .leading, spacing: 6) {
@@ -267,7 +307,7 @@ struct ScrollPageView: View {
                     // SocialFeatures
                     VStack {
                         scrollPage_social_button(image: arc.hasLiked ? "heart.fill" :  "heart" , usecase: .like, arcID: arc.id, count: arc.likes)
-                        scrollPage_social_button(image: "message", present: $showComments)
+                        scrollPage_social_button(image: "message", count: localCommentCount, present: $showComments)
                         scrollPage_social_button(
                             image: arc.hasReposted ? "repeat.1" : "repeat", usecase: .repost, arcID: arc.id, count: arc.reposts
                         )
@@ -302,7 +342,6 @@ struct ScrollPageView: View {
                     Spacer()
                     if let url = APIService.shared.imageURL(path: posterPath) {
                         NavigationLink {
-                            // Use the arc’s own contentType to avoid mismatches
                             ContentDetailView(contentID: arc.contentID, type: arc.contentType)
                         } label: {
                             AsyncImage(url: url) { state in
@@ -336,14 +375,13 @@ struct ScrollPageView: View {
             .padding(.bottom,  36)
         }
         .onTapGesture(count: 2) {
-            toggleArcLike.execute(arcID: arc.id, arcs: &arcs)
+            toggleArcLike.execute(arcID: arc.id, dataStore: dataStore)
         }
     }
 }
 
 // Extension at file scope
 extension ScrollPageView {
-    // Fetch minimal details for an arc and cache them
     enum SocialUseCases {
         case like
         case repost
@@ -372,11 +410,9 @@ extension ScrollPageView {
                 if let tab {
                     prevTab = selectedTab
                     selectedTab = tab
-                    // If a presentation binding is supplied, toggle it on
                     present?.wrappedValue = true
                 }
                 if let newtype {
-                    // Update type and reset paging index to avoid out-of-range
                     if type != newtype {
                         type = newtype
                         scrollPosition = 0
@@ -400,9 +436,9 @@ extension ScrollPageView {
                     present?.wrappedValue = true
                     switch usecase {
                     case .like:
-                        if let arcID { toggleArcLike.execute(arcID: arcID, arcs: &arcs) }
+                        if let arcID { toggleArcLike.execute(arcID: arcID, dataStore: dataStore) }
                     case .repost:
-                        if let arcID { toggleRepostUseCase.execute(arcID: arcID, arcs: &arcs) }
+                        if let arcID { toggleRepostUseCase.execute(arcID: arcID, dataStore: dataStore) }
                     case .none, .some(.view):
                         break
                     }
@@ -448,7 +484,7 @@ extension ScrollPageView {
                     Color.black
                 }
             }
-            .id(path) // re-fades when the backdrop image changes
+            .id(path)
             .frame(width: geo.size.width, height: geo.size.height * 1.5)
             .clipped()
             .blur(radius: 10)
@@ -467,13 +503,4 @@ extension ScrollPageView {
 }
 
 #Preview {
-    let arcs = ArcModel.sampleData
-    let comments = CommentModel.sampleData(from: arcs)
-    let replies = ReplyModel.sampleData(from: comments)
-
-    ScrollPageView(
-        arcs: arcs,
-        comments: comments,
-        replies: replies
-    )
 }
