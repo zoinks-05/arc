@@ -87,6 +87,8 @@ final class DummyDataStore {
                 to: fileURL,
                 options: .atomic
             )
+            
+            print(data)
 
             print("Saved dummy data")
 

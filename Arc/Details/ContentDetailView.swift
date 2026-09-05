@@ -24,6 +24,8 @@ struct ContentDetailView: View {
     @State private var cast: [[String: Any]] = []
     @State private var related: [[String: Any]] = []
     
+    @State var dataStore: DummyDataStore
+    
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -204,8 +206,8 @@ extension ContentDetailView {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(cast.indices, id: \.self) { i in
-                        let person = cast[i]
+                    ForEach(Array(cast.enumerated()), id: \.offset) { pair in
+                        let person = pair.element
                         let name = person["name"] as? String ?? "Unknown"
                         let character = person["character"] as? String ?? ""
                         
@@ -301,8 +303,8 @@ extension ContentDetailView {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(related.indices, id: \.self) { i in
-                        let item = related[i]
+                    ForEach(Array(related.enumerated()), id: \.offset) { pair in
+                        let item = pair.element
                         let title = (type == "movie")
                             ? (item["title"] as? String ?? "N/A")
                             : (item["name"] as? String ?? "N/A")
@@ -310,7 +312,7 @@ extension ContentDetailView {
                         let itemID = item["id"] as? Int ?? 0
                         
                         NavigationLink(
-                            destination: ContentDetailView(contentID: itemID, type: mediaType)
+                            destination: ContentDetailView(contentID: itemID, type: mediaType, dataStore: dataStore)
                         ) {
                             VStack(alignment: .leading, spacing: 6) {
                                 // Poster
@@ -394,9 +396,7 @@ extension ContentDetailView {
     
     // Add to Watchlist sheet (styling only; you’ll wire logic and WatchStatus)
     func addToWatchlistSheet() -> some View {
-        NavigationStack {
-            
-        }
+        CreateArc(contentID: contentID, contentType: type, dataStore: dataStore)
     }
     
     // More Info sheet (styling with common TMDB fields)
@@ -580,11 +580,4 @@ extension ContentDetailView {
         }
     }
 
-}
-
-#Preview {
-    NavigationStack {
-        ContentDetailView(contentID: 157336, type: "movie")
-    }
-    .navigationBarBackButtonHidden(false)
 }

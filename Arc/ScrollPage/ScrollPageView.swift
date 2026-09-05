@@ -4,6 +4,12 @@
 //
 //  Created by Ziyan Nadeem on 30/8/2026.
 //
+//
+//  ScrollPageView.swift
+//  Arc
+//
+//  Created by Ziyan Nadeem on 30/8/2026.
+//
 
 import SwiftUI
 
@@ -12,12 +18,15 @@ struct ScrollPageView: View {
     @State private var selectedTab = "movie"
     @State private var prevTab: String?
     @State private var type = "movie"
-    @State private var showSpoiler = false
     @State private var commentCounts = 0
+
+    @State private var spoilerRevealed: Set<UUID> = []
 
     @State var dataStore: DummyDataStore
 
-    @State private var scrollPosition: Int?
+
+    @State private var scrollPosition: UUID?
+
     @State private var showDetail = false
     @State private var showRecommendation = false
     @State private var showCreateArc = false
@@ -44,10 +53,10 @@ struct ScrollPageView: View {
     private var filteredArcs: [ArcModel] {
         dataStore.arcs.filter { $0.contentType == type }
     }
-    
+
     private func commentsForArcCount(_ arc: ArcModel) -> Int {
         var res = 0
-        let filtered = comments.filter { $0.arcID == arc.id}
+        let filtered = comments.filter { $0.arcID == arc.id }
         for reply in replies {
             if filtered.contains(where: { $0.id == reply.commentID }) {
                 res += 1
@@ -55,33 +64,38 @@ struct ScrollPageView: View {
         }
         return res + filtered.count
     }
-    
+
     private func userDetails(_ arc: ArcModel) -> UserModel? {
         users.first { $0.id == arc.userID }
     }
-    
+
     private var currentArc: ArcModel? {
         guard !filteredArcs.isEmpty else { return nil }
+        // Look the arc up by its own id rather than by index.
         guard let scrollPosition,
-              filteredArcs.indices.contains(scrollPosition) else {
+              let match = filteredArcs.first(where: { $0.id == scrollPosition }) else {
             return filteredArcs.first
         }
-        return filteredArcs[scrollPosition]
+        return match
     }
-    
-    // Convenience accessors for current arc’s fetched details
+
     private var currentTitle: String {
         guard let arc = currentArc,
               let details = detailsCache[arc.id] else {
             return "Loading..."
         }
         if arc.contentType == "movie" {
+            let ids = filteredArcs.map(\.id)
+            let duplicates = Dictionary(grouping: ids, by: { $0 }).filter { $0.value.count > 1 }
+            if !duplicates.isEmpty {
+                print("Duplicate arc IDs found:", duplicates.keys)
+            }
             return (details["title"] as? String) ?? "Unknown Title"
         } else {
             return (details["name"] as? String) ?? "Unknown Title"
         }
     }
-    
+
     private var currentPosterPath: String? {
         guard let arc = currentArc,
               let details = detailsCache[arc.id] else {
@@ -89,78 +103,66 @@ struct ScrollPageView: View {
         }
         return details["poster_path"] as? String
     }
-    
-    // Computed so we can call instance helpers (self is available)
+
     private let toggleArcLike = ArcLikesUseCase()
-    
     private let toggleRepostUseCase = ArcRepostUseCase()
-        
+
     var body: some View {
         NavigationStack {
             ZStack {
                 backdrop(path: currentPosterPath)
-                
+
                 VStack(spacing: 0) {
-                    // Header — stays fixed, does not scroll
                     HStack {
-                        scrollPage_button(tab: "createarc", newtype: nil, image: "plus", present: $showCreateArc)
+                        scrollPage_button(newtype: nil, image: "plus", present: $showCreateArc)
                             .navigationDestination(isPresented: $showCreateArc) {
-                                Text("Creating Coming Soon...")
-                                    .onDisappear{
-                                        selectedTab = prevTab ?? type
-                                    }
+                                if let arc = currentArc {
+                                    CreateArc(contentID: arc.contentID, contentType: arc.contentType, dataStore: dataStore)
+                                }
                             }
                         Spacer()
                         scrollPage_button(tab: "movie", newtype: "movie", image: "film")
                         scrollPage_button(tab: "tv", newtype: "tv", image: "tv")
                         scrollPage_button(tab: "search", newtype: nil, image: "magnifyingglass")
                         Spacer()
-                        scrollPage_button(tab: "recommendation", newtype: nil, image: "slider.horizontal.3", present: $showRecommendation)
+                        scrollPage_button(newtype: nil, image: "slider.horizontal.3", present: $showRecommendation)
                             .navigationDestination(isPresented: $showRecommendation) {
                                 Text("Recommendations Coming Soon...")
-                                    .onDisappear{
-                                        selectedTab = prevTab ?? type
-                                    }
                             }
                     }
                     .padding(.horizontal)
 
-                    
                     if selectedTab == "search" {
-                        SearchView()
+                        SearchView(dataStore: dataStore)
                             .transition(.scale)
-                        Spacer()
                     }
 
-                    
+                    Spacer()
+
                     if selectedTab == "movie" || selectedTab == "tv" {
                         if filteredArcs.isEmpty {
                             Text("No items for \(type.uppercased())")
                                 .font(.headline)
                                 .padding()
                         } else {
-                            GeometryReader { geo in
-                                ScrollView(.vertical, showsIndicators: false) {
-                                    LazyVStack(spacing: 0) {
-                                        ForEach(filteredArcs.indices, id: \.self) { index in
-                                            let arc = filteredArcs[index]
-                                            arcPage(arc: arc)
-                                                .frame(width: geo.size.width, height: geo.size.height)
-                                                .clipped()
-                                                .id(index)
-                                                .task {
-                                                    showSpoiler = false
-                                                    await loadDetailsIfNeeded(for: arc)
-                                                }
-                                        }
+                            ScrollView(.vertical, showsIndicators: false) {
+                                LazyVStack(spacing: 0) {
+                                    ForEach(filteredArcs) { arc in
+                                        arcPage(arc: arc)
+                                            .containerRelativeFrame([.horizontal, .vertical])
+                                            .clipped()
+                                            .id(arc.id)
+                                            .task {
+                                                await loadDetailsIfNeeded(for: arc)
+                                            }
                                     }
-                                    .scrollTargetLayout()
                                 }
-                                .scrollTargetBehavior(.paging)
-                                .scrollPosition(id: $scrollPosition)
+                                .scrollTargetLayout()
                             }
+                            .scrollTargetBehavior(.paging)
+                            .scrollPosition(id: $scrollPosition)
                             .id(type)
-                            .transition(.scale .combined(with: .opacity))
+                            .transition(.scale.combined(with: .opacity))
                             .onChange(of: scrollPosition) { _, _ in
                                 if let arc = currentArc {
                                     Task { await loadDetailsIfNeeded(for: arc) }
@@ -175,7 +177,6 @@ struct ScrollPageView: View {
                     }
                 }
             }
-            // Sheet must apply detents on the sheet content
             .sheet(isPresented: $showComments) {
                 if let arc = currentArc {
                     CommentComponet(
@@ -184,20 +185,18 @@ struct ScrollPageView: View {
                         dataStore: dataStore,
                         arcID: arc.id
                     )
-                    .presentationDetents([.medium, .large], selection: .constant(.medium))
+                    .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                 } else {
-                    // Fallback content
                     Text("No comments")
                         .padding()
-                        .presentationDetents([.fraction(0.35), .large], selection: .constant(.fraction(0.35)))
+                        .presentationDetents([.fraction(0.35), .large])
                         .presentationDragIndicator(.visible)
                 }
             }
         }
     }
-    
-    // One full-screen page of the feed
+
     @ViewBuilder
     func arcPage(arc: ArcModel) -> some View {
         let details = detailsCache[arc.id]
@@ -212,25 +211,29 @@ struct ScrollPageView: View {
         let posterPath = details?["poster_path"] as? String
         let user = users.first { $0.id == arc.userID }
         let localCommentCount = commentsForArcCount(arc)
-        
+        // FIX: derive this page's own reveal state instead of reading a
+        // single app-wide flag.
+        let isRevealed = spoilerRevealed.contains(arc.id)
+
         VStack(spacing: 0) {
-            Text(title)
-                .font(.title.bold())
-                .padding(.horizontal)
-                .padding(.vertical, 5)
-                .glassEffect(.regular, in: Capsule())
-                .lineLimit(1)
-                .padding(.top)
-                .truncationMode(.tail)
-                .frame(maxWidth: 250)
-            
+            HStack {
+                Text(title)
+                    .font(.title.bold())
+                    .padding(.horizontal)
+                    .padding(.vertical, 5)
+                    .glassEffect(.regular, in: Capsule())
+                    .lineLimit(1)
+                    .padding(.top)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 250)
+            }
+            .padding(.top)
+
             Spacer()
-            
-            // Content
+
             HStack {
                 Group {
                     VStack(alignment: .leading) {
-                        // ArcCard
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 if let user {
@@ -256,26 +259,30 @@ struct ScrollPageView: View {
                                 VStack(spacing: 0) {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(arc.reflection)
-                                            .font(.title)
+                                            .font(.largeTitle)
                                             .padding()
-                                            .blur(radius: arc.isSpoiler && !showSpoiler ? 20 : 0)
+                                            .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .topLeading)
                                     .frame(height: geo.size.height * 0.8, alignment: .topLeading)
-                                    
+
                                     Divider()
                                         .padding(.horizontal)
-                                    
+
                                     HStack {
                                         Text("\(arc.rating)")
                                             .font(.caption.bold())
                                         Image(systemName: "star.fill")
                                             .foregroundColor(.yellow)
                                         if arc.isSpoiler {
-                                            Image(systemName: showSpoiler ? "eye" : "eye.slash")
+                                            Image(systemName: isRevealed ? "eye" : "eye.slash")
                                                 .onTapGesture {
                                                     withAnimation {
-                                                        showSpoiler.toggle()
+                                                        if isRevealed {
+                                                            spoilerRevealed.remove(arc.id)
+                                                        } else {
+                                                            spoilerRevealed.insert(arc.id)
+                                                        }
                                                     }
                                                 }
                                         }
@@ -303,21 +310,18 @@ struct ScrollPageView: View {
                         }
                     }
                     .padding()
-                    
-                    // SocialFeatures
+
                     VStack {
-                        scrollPage_social_button(image: arc.hasLiked ? "heart.fill" :  "heart" , usecase: .like, arcID: arc.id, count: arc.likes)
+                        scrollPage_social_button(image: arc.hasLiked ? "heart.fill" : "heart", usecase: .like, arcID: arc.id, count: arc.likes)
                         scrollPage_social_button(image: "message", count: localCommentCount, present: $showComments)
                         scrollPage_social_button(
                             image: arc.hasReposted ? "repeat.1" : "repeat", usecase: .repost, arcID: arc.id, count: arc.reposts
                         )
                     }
-                    .padding(.horizontal,5)
+                    .padding(.horizontal, 5)
                 }
             }
 
-            
-            // Footer
             HStack {
                 VStack {
                     Spacer()
@@ -328,8 +332,8 @@ struct ScrollPageView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .blur(radius: arc.isSpoiler && !showSpoiler ? 20 : 0)
-                    
+                        .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
+
                     Text(arc.createdAt, style: .date)
                         .font(.subheadline)
                         .lineLimit(3)
@@ -338,11 +342,11 @@ struct ScrollPageView: View {
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                VStack{
+                VStack {
                     Spacer()
                     if let url = APIService.shared.imageURL(path: posterPath) {
                         NavigationLink {
-                            ContentDetailView(contentID: arc.contentID, type: arc.contentType)
+                            ContentDetailView(contentID: arc.contentID, type: arc.contentType, dataStore: dataStore)
                         } label: {
                             AsyncImage(url: url) { state in
                                 switch state {
@@ -372,7 +376,7 @@ struct ScrollPageView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .padding(.bottom,  36)
+            .padding(.bottom, 36)
         }
         .onTapGesture(count: 2) {
             toggleArcLike.execute(arcID: arc.id, dataStore: dataStore)
@@ -380,13 +384,13 @@ struct ScrollPageView: View {
     }
 }
 
-// Extension at file scope
 extension ScrollPageView {
     enum SocialUseCases {
         case like
         case repost
         case view
     }
+
     func loadDetailsIfNeeded(for arc: ArcModel) async {
         if detailsCache[arc.id] != nil { return }
         do {
@@ -401,8 +405,7 @@ extension ScrollPageView {
             print("Failed to load details for contentID \(arc.contentID): \(error)")
         }
     }
-    
-    
+
     @ViewBuilder
     func scrollPage_button(tab: String? = nil, newtype: String? = nil, image: String, present: Binding<Bool>? = nil) -> some View {
         Button {
@@ -410,15 +413,15 @@ extension ScrollPageView {
                 if let tab {
                     prevTab = selectedTab
                     selectedTab = tab
-                    present?.wrappedValue = true
                 }
                 if let newtype {
                     if type != newtype {
                         type = newtype
-                        scrollPosition = 0
+                        scrollPosition = nil
                     }
                 }
             }
+            present?.wrappedValue = true
         } label: {
             Image(systemName: image)
                 .font(.title)
@@ -426,14 +429,13 @@ extension ScrollPageView {
                 .padding(10)
         }
     }
-    
+
     func scrollPage_social_button(tab: String? = nil, image: String, conditional: Binding<Bool>? = nil, usecase: SocialUseCases? = nil, arcID: UUID? = nil, count: Int = 0, present: Binding<Bool>? = nil) -> some View {
         VStack {
             Button {
                 withAnimation(.bouncy()) {
                     if let tab { selectedTab = tab }
                     if let conditional { conditional.wrappedValue.toggle() }
-                    present?.wrappedValue = true
                     switch usecase {
                     case .like:
                         if let arcID { toggleArcLike.execute(arcID: arcID, dataStore: dataStore) }
@@ -443,6 +445,7 @@ extension ScrollPageView {
                         break
                     }
                 }
+                present?.wrappedValue = true
             } label: {
                 Image(systemName: image)
                     .font(.title)
@@ -454,10 +457,10 @@ extension ScrollPageView {
             }
         }
     }
-    
+
     func formatSocial(count: Int) -> String {
         let num = Double(count)
-        
+
         switch num {
         case 1_000_000_000...:
             return String(format: "%.1fb", num / 1_000_000_000)
@@ -469,7 +472,7 @@ extension ScrollPageView {
             return "\(count)"
         }
     }
-    
+
     func backdrop(path: String?) -> some View {
         GeometryReader { geo in
             AsyncImage(url: APIService.shared.imageURL(path: path)) { state in

@@ -16,6 +16,9 @@ struct SearchView: View {
     @State private var type = "movie"
     
     @State private var showResults = false
+
+    // Provide a dataStore so we can navigate to ContentDetailView
+    @State var dataStore: DummyDataStore = DummyDataStore()
     
     var body: some View {
         NavigationStack {
@@ -63,15 +66,19 @@ struct SearchView: View {
             NavigationStack {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(Results.indices, id: \.self) { index in
-                            let res = Results[index]
-                            let resID = res["id"] as? Int ?? 0
+                        // Build a collection with stable IDs from TMDB results
+                        ForEach(Results.compactMap { res -> (id: Int, dict: [String: Any])? in
+                            guard let id = res["id"] as? Int else { return nil }
+                            return (id: id, dict: res)
+                        }, id: \.id) { item in
+                            let res = item.dict
+                            let resID = item.id
                             let title = (type == "movie")
                                 ? (res["title"] as? String ?? "Unknown")
                                 : (res["name"] as? String ?? "Unknown")
                             
                             NavigationLink(
-                                destination: ContentDetailView(contentID: resID, type: type)
+                                destination: ContentDetailView(contentID: resID, type: type, dataStore: dataStore)
                             ) {
                                 VStack(alignment: .leading, spacing: 6) {
                                     // Poster
@@ -127,7 +134,11 @@ struct SearchView: View {
             Results = try await SearchContentUseCase().execute(query: Title, type: type)
             showResults = !Results.isEmpty
         } catch {
-            errorMessage = error.localizedDescription
+            if let err = error as? SearchContentUseCase.SearchError {
+                errorMessage = err.errorMessage
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

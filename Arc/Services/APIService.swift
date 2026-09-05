@@ -83,5 +83,24 @@ final class APIService {
         }
         return URL(string: "https://image.tmdb.org/t/p/\(width)\(path)")
     }
+    
+    func fetchRandomHomeContent() async throws -> [String: Any] {
+        let type = ["movie", "tv"].randomElement()!
+        let category = ["popular", "top_rated", "trending"].randomElement()!
+        let page = Int.random(in: 1...5)
 
+        let endpoint: String = category == "trending"
+            ? "\(tmdbBaseURL)/trending/\(type)/day?page=\(page)"
+            : "\(tmdbBaseURL)/\(type)/\(category)?page=\(page)"
+
+        let listResult = try await fetch(endpoint)
+
+        guard let results = listResult["results"] as? [[String: Any]],
+              var randomResult = results.randomElement() else {
+            throw URLError(.badServerResponse)
+        }
+        randomResult["media_type"] = type
+
+        return randomResult
+    }
 }

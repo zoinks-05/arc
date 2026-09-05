@@ -14,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             
-            Text("Home")
+            Home(dataStore: dataStore)
                 .tabItem {
                     Label("Home", systemImage: "house")
                 }
