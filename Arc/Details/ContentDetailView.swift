@@ -28,50 +28,60 @@ struct ContentDetailView: View {
     
     // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            if isLoading || content.isEmpty {
-                ProgressView()
-                    .frame(maxHeight: .infinity, alignment: .center)
-            } else {
-                header()
-                
-                // Only a single "Main" section (no Reviews)
-                ScrollView {
-                    VStack(spacing: 12) {
-                        // Synopsis (TMDB: "overview")
-                        MainCard(
-                            label: "Synopsis",
-                            value: content["overview"] as? String ?? "N/A",
-                            expanded: $synopsisExpanded
-                        )
-                        
-                        // Characters (Cast)
-                        if !cast.isEmpty {
-                            charactersCard()
-                        } else {
-                            // Placeholder characters card
-                            charactersPlaceholderCard()
+        NavigationStack{
+            ZStack(alignment: .top) {
+                if isLoading || content.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            Color.clear.frame(height: 250) // clears the fixed header below
+                            
+                            NavigationLink {
+                                ScrollPageView(
+                                    dataStore: dataStore,
+                                    mode: .focused(contentID: contentID)
+                                )
+                            } label: {
+                                Text("See Arcs")
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .glassEffect()
+                            }
+                            
+                            MainCard(
+                                label: "Synopsis",
+                                value: content["overview"] as? String ?? "N/A",
+                                expanded: $synopsisExpanded
+                            )
+                            
+                            if !cast.isEmpty {
+                                charactersCard()
+                            } else {
+                                charactersPlaceholderCard()
+                            }
+                            
+                            if !related.isEmpty {
+                                relatedCard(related: related)
+                            } else {
+                                relatedPlaceholderCard()
+                            }
                         }
-                        
-                        // Related (Recommendations)
-                        if !related.isEmpty {
-                            relatedCard(related: related)
-                        } else {
-                            // Placeholder related card
-                            relatedPlaceholderCard()
-                        }
+                        .padding(.horizontal, 12)
                     }
-                    .padding(.horizontal, 12)
+                    
+                    // Fixed — not inside the ScrollView, does not move
+                    header()
                 }
             }
-        }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .task {
-            await loadAll()
+            .frame(maxHeight: .infinity, alignment: .top)
+            .task {
+                await loadAll()
+            }
         }
     }
 }
-
 // MARK: - Subviews
 extension ContentDetailView {
     
@@ -98,6 +108,14 @@ extension ContentDetailView {
                     }
                 }
                 .frame(height: 250 + geometry.safeAreaInsets.top)
+                .overlay(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.85)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 150)
+                }
                 .ignoresSafeArea(edges: .top)
                 
                 // Overlay: poster + info

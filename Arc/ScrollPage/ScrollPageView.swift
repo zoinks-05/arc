@@ -14,6 +14,12 @@
 import SwiftUI
 
 struct ScrollPageView: View {
+    
+    enum ScrollMode {
+        case feed
+        case focused(contentID: Int)
+        case profile(userID: UUID, contentType: String, startingArcID: UUID?)
+    }
 
     @State private var selectedTab = "movie"
     @State private var prevTab: String?
@@ -23,6 +29,7 @@ struct ScrollPageView: View {
     @State private var spoilerRevealed: Set<UUID> = []
 
     @State var dataStore: DummyDataStore
+    @State var mode: ScrollMode = .feed
 
 
     @State private var scrollPosition: UUID?
@@ -51,7 +58,19 @@ struct ScrollPageView: View {
     }
 
     private var filteredArcs: [ArcModel] {
-        dataStore.arcs.filter { $0.contentType == type }
+        filteredArcs(for: mode)
+    }
+    
+    private var startingArcID: UUID? {
+
+        switch mode {
+
+        case .profile(_, _, let startingArcID):
+            return startingArcID
+
+        default:
+            return nil
+        }
     }
 
     private func commentsForArcCount(_ arc: ArcModel) -> Int {
@@ -111,70 +130,135 @@ struct ScrollPageView: View {
         NavigationStack {
             ZStack {
                 backdrop(path: currentPosterPath)
+                
+                if selectedTab == "movie" || selectedTab == "tv" {
+                    if filteredArcs.isEmpty {
+                        Text("No items for \(type.uppercased())")
+                            .font(.headline)
+                            .padding()
+                    } else {
+                        ScrollView(
+                            .vertical,
+                            showsIndicators: false
+                        ) {
 
-                VStack(spacing: 0) {
-                    HStack {
-                        scrollPage_button(newtype: nil, image: "plus", present: $showCreateArc)
-                            .navigationDestination(isPresented: $showCreateArc) {
-                                if let arc = currentArc {
-                                    CreateArc(contentID: arc.contentID, contentType: arc.contentType, dataStore: dataStore)
+                            LazyVStack(spacing: 0) {
+
+                                ForEach(filteredArcs) { arc in
+
+                                    arcPage(arc: arc)
+                                        .containerRelativeFrame(
+                                            [.horizontal, .vertical]
+                                        )
+                                        .id(arc.id)
+                                        .task {
+                                            await loadDetailsIfNeeded(for: arc)
+                                        }
                                 }
                             }
-                        Spacer()
-                        scrollPage_button(tab: "movie", newtype: "movie", image: "film")
-                        scrollPage_button(tab: "tv", newtype: "tv", image: "tv")
-                        scrollPage_button(tab: "search", newtype: nil, image: "magnifyingglass")
-                        Spacer()
-                        scrollPage_button(newtype: nil, image: "slider.horizontal.3", present: $showRecommendation)
-                            .navigationDestination(isPresented: $showRecommendation) {
-                                Text("Recommendations Coming Soon...")
-                            }
-                    }
-                    .padding(.horizontal)
+                            .scrollTargetLayout()
+                        }
+                        .scrollTargetBehavior(.paging)
+                        .scrollPosition(id: $scrollPosition)
+                        .onAppear {
 
-                    if selectedTab == "search" {
-                        SearchView(dataStore: dataStore)
-                            .transition(.scale)
-                    }
-
-                    Spacer()
-
-                    if selectedTab == "movie" || selectedTab == "tv" {
-                        if filteredArcs.isEmpty {
-                            Text("No items for \(type.uppercased())")
-                                .font(.headline)
-                                .padding()
-                        } else {
-                            ScrollView(.vertical, showsIndicators: false) {
-                                LazyVStack(spacing: 0) {
-                                    ForEach(filteredArcs) { arc in
-                                        arcPage(arc: arc)
-                                            .containerRelativeFrame([.horizontal, .vertical])
-                                            .clipped()
-                                            .id(arc.id)
-                                            .task {
-                                                await loadDetailsIfNeeded(for: arc)
-                                            }
-                                    }
-                                }
-                                .scrollTargetLayout()
-                            }
-                            .scrollTargetBehavior(.paging)
-                            .scrollPosition(id: $scrollPosition)
-                            .id(type)
-                            .transition(.scale.combined(with: .opacity))
-                            .onChange(of: scrollPosition) { _, _ in
-                                if let arc = currentArc {
-                                    Task { await loadDetailsIfNeeded(for: arc) }
-                                }
-                            }
-                            .onAppear {
-                                if let arc = currentArc {
-                                    Task { await loadDetailsIfNeeded(for: arc) }
-                                }
+                            if scrollPosition == nil {
+                                scrollPosition = startingArcID
                             }
                         }
                     }
+                }
+                
+                if case .feed = mode {
+
+                    VStack(spacing: 0) {
+
+                        HStack {
+
+                            scrollPage_button(
+                                newtype: nil,
+                                image: "plus",
+                                present: $showCreateArc
+                            )
+                            .navigationDestination(isPresented: $showCreateArc) {
+
+                                if let arc = currentArc {
+
+                                    CreateArc(
+                                        contentID: arc.contentID,
+                                        contentType: arc.contentType,
+                                        dataStore: dataStore
+                                    )
+                                }
+                            }
+
+                            Spacer()
+
+                            scrollPage_button(
+                                tab: "movie",
+                                newtype: "movie",
+                                image: "film"
+                            )
+
+                            scrollPage_button(
+                                tab: "tv",
+                                newtype: "tv",
+                                image: "tv"
+                            )
+
+                            scrollPage_button(
+                                tab: "search",
+                                newtype: nil,
+                                image: "magnifyingglass"
+                            )
+
+                            Spacer()
+
+                            scrollPage_button(
+                                newtype: nil,
+                                image: "slider.horizontal.3",
+                                present: $showRecommendation
+                            )
+                            .navigationDestination(
+                                isPresented: $showRecommendation
+                            ) {
+                                Text("Recommendations Coming Soon...")
+                            }
+                        }
+
+                        .padding(.horizontal)
+                        .padding(.top, 20)
+                        .padding(.bottom, 12)
+
+                        if selectedTab == "search" {
+
+                            SearchView(dataStore: dataStore)
+                                .transition(.scale)
+                        }
+
+                        Spacer()
+                    }
+
+                    .background(
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .mask(
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .black, location: 0.3),
+                                        .init(color: .clear, location: 1)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                )
+                            )
+                            .frame(height: 140)
+                            .frame(
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
+                            .ignoresSafeArea(edges: .top)
+                    )
                 }
             }
             .sheet(isPresented: $showComments) {
@@ -211,11 +295,10 @@ struct ScrollPageView: View {
         let posterPath = details?["poster_path"] as? String
         let user = users.first { $0.id == arc.userID }
         let localCommentCount = commentsForArcCount(arc)
-        // FIX: derive this page's own reveal state instead of reading a
-        // single app-wide flag.
         let isRevealed = spoilerRevealed.contains(arc.id)
 
         VStack(spacing: 0) {
+            Color.clear.frame(height:100)
             HStack {
                 Text(title)
                     .font(.title.bold())
@@ -229,37 +312,43 @@ struct ScrollPageView: View {
             }
             .padding(.top)
 
-            Spacer()
 
             HStack {
                 Group {
                     VStack(alignment: .leading) {
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                if let user {
-                                    Text("\(user.username) \(arc.sentiment)")
-                                        .font(.title.bold())
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 5)
-                                        .glassEffect(.regular, in: Capsule())
-                                } else {
-                                    Text(arc.sentiment)
-                                        .font(.title.bold())
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 5)
-                                        .glassEffect(.regular, in: Capsule())
+                            // Username + sentiment row becomes tappable to push ProfileView
+                            NavigationLink {
+                                ProfileView(dataStore: dataStore, user: user)
+                            } label: {
+                                HStack {
+                                    if let user {
+                                        Text("\(user.username) \(arc.sentiment)")
+                                            .font(.title.bold())
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .padding(.horizontal)
+                                            .padding(.vertical, 5)
+                                            .glassEffect(.regular, in: Capsule())
+                                    } else {
+                                        Text(arc.sentiment)
+                                            .font(.title.bold())
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .padding(.horizontal)
+                                            .padding(.vertical, 5)
+                                            .glassEffect(.regular, in: Capsule())
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
                             }
+                            .buttonStyle(.plain)
+
                             GeometryReader { geo in
                                 VStack(spacing: 0) {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(arc.reflection)
-                                            .font(.largeTitle)
+                                            .font(.title)
                                             .padding()
                                             .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
                                     }
@@ -305,7 +394,7 @@ struct ScrollPageView: View {
                                     .padding(.horizontal, 16)
                                 }
                             }
-                            .frame(height: 350)
+                            .frame(height: 300)
                             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
                         }
                     }
@@ -323,15 +412,13 @@ struct ScrollPageView: View {
             }
 
             HStack {
-                VStack {
-                    Spacer()
+                VStack(alignment: .leading) {
                     Text(arc.desription ?? "")
                         .font(.subheadline)
                         .lineLimit(3)
                         .truncationMode(.tail)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: 250, alignment: .leading)
                         .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
 
                     Text(arc.createdAt, style: .date)
@@ -339,9 +426,10 @@ struct ScrollPageView: View {
                         .lineLimit(3)
                         .truncationMode(.tail)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: 150, alignment: .leading)
                 }
+                .frame(height: 144, alignment: .bottom)
+                Spacer()
                 VStack {
                     Spacer()
                     if let url = APIService.shared.imageURL(path: posterPath) {
@@ -376,7 +464,8 @@ struct ScrollPageView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .padding(.bottom, 36)
+            .padding(.bottom, 72)
+            
         }
         .onTapGesture(count: 2) {
             toggleArcLike.execute(arcID: arc.id, dataStore: dataStore)
@@ -502,6 +591,34 @@ extension ScrollPageView {
             .animation(.easeInOut(duration: 0.3), value: path)
         }
         .ignoresSafeArea(edges: .all)
+    }
+    
+    private func filteredArcs(for mode: ScrollMode) -> [ArcModel] {
+        switch mode {
+            
+        case .feed:
+            return dataStore.arcs.filter {
+                $0.contentType == type
+            }
+            
+        case .focused(let contentID):
+            return dataStore.arcs.filter {
+                $0.contentID == contentID
+            }
+        
+        case .profile(
+            let userID,
+            let contentType,
+            _
+        ):
+
+            return dataStore.arcs.filter {
+
+                $0.userID == userID &&
+                $0.contentType == contentType
+            }
+        }
+        
     }
 }
 

@@ -21,7 +21,7 @@ final class DummyDataStore {
             for: .documentDirectory,
             in: .userDomainMask
         )[0]
-        .appendingPathComponent("dummyData.json")
+        .appendingPathComponent("dummyDataV2.json")
     }
 
     func loadData() {
@@ -90,7 +90,7 @@ final class DummyDataStore {
             
             print(data)
 
-            print("Saved dummy data")
+            print("Saved dummy data V2")
 
         } catch {
             print("Failed to save dummy data:", error)

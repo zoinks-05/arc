@@ -10,6 +10,9 @@ import SwiftUI
 struct ContentView: View {
     
     @State private var dataStore = DummyDataStore()
+    private var localUser: UserModel? {
+        dataStore.users.first(where: { $0.username == "localUser" })
+    }
     
     var body: some View {
         TabView {
@@ -26,19 +29,21 @@ struct ContentView: View {
                 Label("Feed", systemImage: "play.rectangle")
             }
             
-            Text("Profile")
-                .tabItem {
-                    Label("Profile", systemImage: "person")
-                }
+            ProfileView(
+                dataStore: dataStore,
+                user: localUser
+            )
+            .tabItem {
+                Label("Profile", systemImage: "person")
+            }
         }
         .onAppear {
             dataStore.loadData()
         }
-
     }
-    
 }
 
 #Preview {
     ContentView()
 }
+
