@@ -414,7 +414,7 @@ extension ContentDetailView {
     
     // Add to Watchlist sheet (styling only; you’ll wire logic and WatchStatus)
     func addToWatchlistSheet() -> some View {
-        CreateArc(contentID: contentID, contentType: type, dataStore: dataStore)
+        CreateArc(contentID: contentID, contentType: type, mode: .new, dataStore: dataStore)
     }
     
     // More Info sheet (styling with common TMDB fields)

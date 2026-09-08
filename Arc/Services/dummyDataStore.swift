@@ -21,7 +21,7 @@ final class DummyDataStore {
             for: .documentDirectory,
             in: .userDomainMask
         )[0]
-        .appendingPathComponent("dummyDataV2.json")
+        .appendingPathComponent("dummyDataV4.json")
     }
 
     func loadData() {

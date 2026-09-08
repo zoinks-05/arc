@@ -19,19 +19,6 @@ enum DummyDataGenerator {
         // Users
         var users = [UserModel(id: UUID(), username: "localUser", bio: "Local User Dev Testing", preferredGenres: [], followers: 0, following: 0)]
 
-        for i in 1...100 {
-            users.append(
-                UserModel(
-                    id: UUID(),
-                    username: "user\(i)",
-                    bio: "User \(i) Dev Testing",
-                    preferredGenres: [],
-                    followers: Int.random(in: 0...5000),
-                    following: Int.random(in: 0...1000)
-                )
-            )
-        }
-
         // Content IDs for movies and TV shows
         let movies = [
             157336, // Interstellar
@@ -116,12 +103,26 @@ enum DummyDataGenerator {
             "A generated Arc for the demo dataset."
         ]
 
-        let themes = [
-            "Drama", "Family", "Identity", "Love", "Loss", "Power",
-            "Friendship", "Ambition", "Fear", "Memory", "Time", "Isolation",
-            "Justice", "Revenge", "Sacrifice", "Growth", "Morality", "Hope",
-            "Freedom", "Conflict", "Humanity", "Coming of Age", "Trust",
-            "Loneliness", "Control", "War", "Good vs Evil", "Obsession"
+        let genres = [
+            "Action",
+            "Adventure",
+            "Animation",
+            "Comedy",
+            "Crime",
+            "Documentary",
+            "Drama",
+            "Family",
+            "Fantasy",
+            "History",
+            "Horror",
+            "Music",
+            "Mystery",
+            "Romance",
+            "Science Fiction",
+            "TV Movie",
+            "Thriller",
+            "War",
+            "Western"
         ]
 
         // Keep sentiments exactly the same
@@ -130,6 +131,19 @@ enum DummyDataGenerator {
             "feels",
             "thinks"
         ]
+        
+        for i in 1...100 {
+            users.append(
+                UserModel(
+                    id: UUID(),
+                    username: "user\(i)",
+                    bio: "User \(i) Dev Testing",
+                    preferredGenres: Array(Set(genres.shuffled().prefix(Int.random(in: 1...3)))),
+                    followers: Int.random(in: 0...5000),
+                    following: Int.random(in: 0...1000)
+                )
+            )
+        }
 
         for _ in 1...300 {
             let isMovie = Bool.random()
@@ -144,7 +158,7 @@ enum DummyDataGenerator {
                 reflection: reflections.randomElement()!,
                 sentiment: sentiments.randomElement()!,
                 desription: descriptions.randomElement()!,
-                themes: Array(Set(themes.shuffled().prefix(Int.random(in: 2...5)))),
+                themes: Array(Set(genres.shuffled().prefix(Int.random(in: 1...3)))),
                 rating: Int.random(in: 1...10),
                 likes: Int.random(in: 0...2500),
                 reposts: Int.random(in: 0...700),

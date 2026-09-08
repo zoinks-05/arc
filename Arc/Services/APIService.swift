@@ -84,6 +84,50 @@ final class APIService {
         return URL(string: "https://image.tmdb.org/t/p/\(width)\(path)")
     }
     
+    func fetchGenreList(type: String) async throws -> [String: Any] {
+        return try await fetch("\(tmdbBaseURL)/genre/\(type)/list")
+    }
+    
+    func fetchGenreIDMap(type: String) async throws -> [String : Int] {
+        let res = try await fetchGenreList(type: type)
+        let genreObjs = res["genres"] as? [[String: Any]] ?? []
+        var map: [String: Int] = [:]
+        for g in genreObjs {
+            if let id = g["id"] as? Int, let name = g["name"] as? String {
+                map[name] = id
+            }
+        }
+        return map
+    }
+    
+    func fetchRecommendedContent(preferredGenres: [String]) async throws -> [String: Any] {
+        guard !preferredGenres.isEmpty else {
+            return try await fetchRandomHomeContent()
+        }
+
+        let type = ["movie", "tv"].randomElement()!
+        let genreMap = try await fetchGenreIDMap(type: type)
+        let matchingIDs = preferredGenres.compactMap { genreMap[$0] }
+
+        guard !matchingIDs.isEmpty else {
+            return try await fetchRandomHomeContent()
+        }
+
+        let genreQuery = matchingIDs.map(String.init).joined(separator: "|")
+        let page = Int.random(in: 1...5)
+
+        let endpoint = "\(tmdbBaseURL)/discover/\(type)?with_genres=\(genreQuery)&sort_by=popularity.desc&page=\(page)"
+        let listResult = try await fetch(endpoint)
+
+        guard let results = listResult["results"] as? [[String: Any]],
+              var chosen = results.randomElement() else {
+            throw URLError(.badServerResponse)
+        }
+
+        chosen["media_type"] = type
+        return chosen
+    }
+    
     func fetchRandomHomeContent() async throws -> [String: Any] {
         let type = ["movie", "tv"].randomElement()!
         let category = ["popular", "top_rated", "trending"].randomElement()!

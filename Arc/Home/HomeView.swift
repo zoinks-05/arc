@@ -8,11 +8,12 @@
 import SwiftUI
 
 struct Home: View {
-
+    
     @State var dataStore: DummyDataStore
+    let user: UserModel?
     @State private var suggestions: [SuggestionItem] = []
     @State private var isLoadingMore = false
-
+    
     // Short, quiet framing lines — the title carries the weight now, not this.
     private let suggestionPhrases = [
         "Arc thinks you'll like this",
@@ -21,16 +22,16 @@ struct Home: View {
         "Worth a look, Arc says",
         "Arc's next pick for you"
     ]
-
+    
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
                 Color.black.ignoresSafeArea()
-
+                
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 24) {
                         Color.clear.frame(height: 90)
-
+                        
                         ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, item in
                             SuggestionCard(item: item, dataStore: dataStore)
                                 .onAppear {
@@ -39,7 +40,7 @@ struct Home: View {
                                     }
                                 }
                         }
-
+                        
                         if isLoadingMore {
                             ProgressView()
                                 .tint(.white)
@@ -48,7 +49,10 @@ struct Home: View {
                     }
                     .padding()
                 }
-
+                .refreshable{
+                    await refreshFeed()
+                }
+                
                 VStack(spacing: 0) {
                     HStack {
                         Text("Arc")
@@ -82,22 +86,33 @@ struct Home: View {
             }
         }
         .task {
-            await loadBatch()
+            suggestions = await fetchBatch()
         }
     }
-
+    
+    private func refreshFeed() async {
+        suggestions.removeAll()
+        suggestions = await fetchBatch()
+    }
     private func loadMoreIfNeeded() async {
         guard !isLoadingMore else { return }
-        await loadBatch()
+        suggestions.append(contentsOf: await fetchBatch())
     }
-
-    private func loadBatch() async {
+    
+    private func fetchBatch() async -> [SuggestionItem] {
         isLoadingMore = true
+        defer { isLoadingMore = false }
 
+        let preferredGenres = user?.preferredGenres ?? []
         var newItems: [SuggestionItem] = []
+
         for _ in 0..<5 {
+            let fetchTask = Task {
+                try await APIService.shared.fetchRecommendedContent(preferredGenres: preferredGenres)
+            }
+
             do {
-                let content = try await APIService.shared.fetchRandomHomeContent()
+                let content = try await fetchTask.value
                 let type = (content["media_type"] as? String) ?? "movie"
                 let contentID = content["id"] as? Int
                 let title = type == "movie"
@@ -112,8 +127,7 @@ struct Home: View {
             }
         }
 
-        suggestions.append(contentsOf: newItems)
-        isLoadingMore = false
+        return newItems
     }
 }
 

@@ -50,8 +50,6 @@ struct ProfileView: View {
                     
                     VStack(spacing: 20) {
                         
-                        // MARK: Profile Header
-                        
                         VStack(spacing: 16) {
                             
                             HStack(
@@ -270,11 +268,18 @@ extension ProfileView {
         let dataStore: DummyDataStore
 
         @State private var posterPath: String?
+        @State private var showDeleteConfirmation = false
+        @State private var showEditPlaceholder = false
+
+        private let deleteArc = ArcDeleteUseCase()
+
+        private var isOwnArc: Bool {
+            dataStore.users.first(where: { $0.username == "localUser" })?.id == arc.userID
+        }
 
         var body: some View {
 
             NavigationLink {
-
                 ScrollPageView(
                     dataStore: dataStore,
                     mode: .profile(
@@ -283,65 +288,66 @@ extension ProfileView {
                         startingArcID: arc.id
                     )
                 )
-
             } label: {
-
                 ZStack {
-
-                    if let url = APIService.shared.imageURL(
-                        path: posterPath
-                    ) {
-
+                    if let url = APIService.shared.imageURL(path: posterPath) {
                         AsyncImage(url: url) { state in
-
                             switch state {
-
                             case .success(let image):
-
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-
+                                image.resizable().scaledToFill()
                             case .failure, .empty:
-
                                 Color.gray.opacity(0.3)
-
                             @unknown default:
-
                                 Color.gray.opacity(0.3)
                             }
                         }
-
                     } else {
-
                         Color.gray.opacity(0.3)
                     }
                 }
-                .aspectRatio(
-                    2 / 3,
-                    contentMode: .fill
-                )
+                .aspectRatio(2 / 3, contentMode: .fill)
                 .clipped()
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                if isOwnArc {
+                    Button {
+                        showEditPlaceholder = true
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Delete this Arc?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    deleteArc.execute(arcID: arc.id, dataStore: dataStore)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This can't be undone.")
+            }
+            .navigationDestination(isPresented: $showEditPlaceholder) {
+                CreateArc(contentID: arc.contentID, contentType: arc.contentType, mode: .edit(arc), dataStore: dataStore)
+            }
             .task {
-
                 do {
-
-                    let details =
-                        try await APIService.shared.fetchContentDetails(
-                            ContentID: arc.contentID,
-                            type: arc.contentType
-                        )
-
-                    posterPath =
-                        details["poster_path"] as? String
-
-                } catch {
-
-                    print(
-                        "Failed to load poster: \(error)"
+                    let details = try await APIService.shared.fetchContentDetails(
+                        ContentID: arc.contentID,
+                        type: arc.contentType
                     )
+                    posterPath = details["poster_path"] as? String
+                } catch {
+                    print("Failed to load poster: \(error)")
                 }
             }
         }

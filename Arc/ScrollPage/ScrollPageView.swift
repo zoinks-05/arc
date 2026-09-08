@@ -4,12 +4,6 @@
 //
 //  Created by Ziyan Nadeem on 30/8/2026.
 //
-//
-//  ScrollPageView.swift
-//  Arc
-//
-//  Created by Ziyan Nadeem on 30/8/2026.
-//
 
 import SwiftUI
 
@@ -40,6 +34,8 @@ struct ScrollPageView: View {
     @State private var showComments = false
 
     @State private var detailsCache: [UUID: [String: Any]] = [:]
+    @State private var feedOrder: [UUID] = []
+    
 
     private var users: [UserModel] {
         dataStore.users
@@ -71,6 +67,10 @@ struct ScrollPageView: View {
         default:
             return nil
         }
+    }
+    
+    private var viewerRef : UserModel? {
+        users.first {$0.username == "localUser"}
     }
 
     private func commentsForArcCount(_ arc: ArcModel) -> Int {
@@ -161,10 +161,18 @@ struct ScrollPageView: View {
                         .scrollTargetBehavior(.paging)
                         .scrollPosition(id: $scrollPosition)
                         .onAppear {
-
+                            if feedOrder.isEmpty {
+                                buildFeedOrder()
+                            }
                             if scrollPosition == nil {
                                 scrollPosition = startingArcID
                             }
+                        }
+                        .onChange(of: type) { _, _ in
+                            buildFeedOrder()
+                        }
+                        .onChange(of: viewerRef?.preferredGenres) { _, _ in
+                            buildFeedOrder()
                         }
                     }
                 }
@@ -187,6 +195,7 @@ struct ScrollPageView: View {
                                     CreateArc(
                                         contentID: arc.contentID,
                                         contentType: arc.contentType,
+                                        mode: .new,
                                         dataStore: dataStore
                                     )
                                 }
@@ -222,7 +231,9 @@ struct ScrollPageView: View {
                             .navigationDestination(
                                 isPresented: $showRecommendation
                             ) {
-                                Text("Recommendations Coming Soon...")
+                                // Find the local user (dataset uses "localUser")
+                                let localUser = users.first { $0.username == "localUser" }
+                                RecommendationsComponent(dataStore: dataStore, user: localUser)
                             }
                         }
 
@@ -263,7 +274,7 @@ struct ScrollPageView: View {
             }
             .sheet(isPresented: $showComments) {
                 if let arc = currentArc {
-                    CommentComponet(
+                    CommentComponent(
                         description: arc.desription,
                         createdAt: arc.createdAt,
                         dataStore: dataStore,
@@ -593,13 +604,41 @@ extension ScrollPageView {
         .ignoresSafeArea(edges: .all)
     }
     
+    private func buildFeedOrder() {
+        let preferredGenres = Set(viewerRef?.preferredGenres ?? [])
+
+        let base = dataStore.arcs.filter {
+            $0.contentType == type && $0.userID != viewerRef?.id
+        }
+
+        let matching = preferredGenres.isEmpty
+            ? []
+            : base.filter { !Set($0.themes).isDisjoint(with: preferredGenres) }
+
+        let matchingIDs = Set(matching.map(\.id))
+        let rest = base.filter { !matchingIDs.contains($0.id) }
+
+        feedOrder = (matching.shuffled() + rest.shuffled()).map(\.id)
+    }
+    
     private func filteredArcs(for mode: ScrollMode) -> [ArcModel] {
         switch mode {
             
         case .feed:
-            return dataStore.arcs.filter {
-                $0.contentType == type
+            let base = dataStore.arcs.filter {
+                $0.contentType == type && $0.userID != viewerRef?.id
             }
+            let baseByID = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
+
+            var result = feedOrder.compactMap { baseByID[$0] }
+
+            let knownIDs = Set(feedOrder)
+            let newArcs = base.filter { !knownIDs.contains($0.id) }
+            if !newArcs.isEmpty {
+                result.append(contentsOf: newArcs)
+            }
+
+            return result
             
         case .focused(let contentID):
             return dataStore.arcs.filter {
