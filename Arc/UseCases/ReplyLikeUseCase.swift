@@ -12,11 +12,12 @@ final class ReplyLikesUseCase {
     func execute(
         replyID: UUID,
         dataStore: DummyDataStore
-    ) {
-        guard let i = dataStore.replies.firstIndex(
-            where: { $0.id == replyID }
-        ) else {
-            return
+    ) throws {
+
+        guard let i = dataStore.replies.firstIndex(where: {
+            $0.id == replyID
+        }) else {
+            throw ReplyError.replyNotFound
         }
 
         dataStore.replies[i].hasLiked.toggle()
@@ -24,7 +25,7 @@ final class ReplyLikesUseCase {
         if dataStore.replies[i].hasLiked {
             dataStore.replies[i].likes += 1
         } else {
-            dataStore.replies[i].likes -= 1
+            dataStore.replies[i].likes = max(0, dataStore.replies[i].likes - 1)
         }
 
         dataStore.saveData()

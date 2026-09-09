@@ -17,6 +17,9 @@ struct RecommendationsComponent: View {
     @State private var isLoading = true
     @State private var didSave = false
 
+    @State private var errorMessage: String?
+    @State private var showError = false
+
     private let updateGenres = UserUpdatesGenresUseCase()
 
     var body: some View {
@@ -25,6 +28,7 @@ struct RecommendationsComponent: View {
                 Text("What do you like watching?")
                     .font(.title2.bold())
                     .foregroundStyle(.white)
+
                 Text("Pick as many as you want, this shapes what Arc recommends you.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.6))
@@ -42,12 +46,16 @@ struct RecommendationsComponent: View {
                 ) {
                     ForEach(availableGenres, id: \.self) { genre in
                         let isSelected = selectedGenres.contains(genre)
+
                         Text(genre)
                             .font(.subheadline)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 15)
-                            .glassEffect(isSelected ? .regular.tint(.white) : .regular, in: RoundedRectangle(cornerRadius: CGFloat(8)))
+                            .glassEffect(
+                                isSelected ? .regular.tint(.white) : .regular,
+                                in: RoundedRectangle(cornerRadius: 8)
+                            )
                             .opacity(isSelected ? 0.8 : 0.6)
                             .onTapGesture {
                                 withAnimation(.bouncy()) {
@@ -75,9 +83,14 @@ struct RecommendationsComponent: View {
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
-                          )
+                        )
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: 16,
+                            style: .continuous
+                        )
+                    )
             }
             .buttonStyle(.plain)
             .disabled(selectedGenres.isEmpty)
@@ -87,10 +100,19 @@ struct RecommendationsComponent: View {
         .task {
             await loadGenres()
         }
+        .alert("Unable to save preferences", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                errorMessage
+                ?? "Your genre preferences could not be saved. Please try again."
+            )
+        }
     }
 
     private func toggleGenre(_ genre: String) {
         didSave = false
+
         if selectedGenres.contains(genre) {
             selectedGenres.remove(genre)
         } else {
@@ -99,13 +121,33 @@ struct RecommendationsComponent: View {
     }
 
     private func save() {
-        guard let user else { return }
-        updateGenres.execute(
-            userID: user.id,
-            dataStore: dataStore,
-            updatedGenres: Array(selectedGenres)
-        )
-        withAnimation(.easeInOut) { didSave = true }
+        guard let user else {
+            showErrorMessage(UserError.localUserNotFound.localizedDescription)
+            return
+        }
+
+        do {
+            try updateGenres.execute(
+                userID: user.id,
+                dataStore: dataStore,
+                updatedGenres: Array(selectedGenres)
+            )
+
+            withAnimation(.easeInOut) {
+                didSave = true
+            }
+        } catch let error as UserError {
+            showErrorMessage(error.localizedDescription)
+        } catch {
+            showErrorMessage(
+                "Your genre preferences could not be saved. Please try again."
+            )
+        }
+    }
+
+    private func showErrorMessage(_ message: String) {
+        errorMessage = message
+        showError = true
     }
 
     private func loadGenres() async {
@@ -113,24 +155,31 @@ struct RecommendationsComponent: View {
             async let movieGenresResult = APIService.shared.fetchGenreList(type: "movies")
             async let tvGenresResult = APIService.shared.fetchGenreList(type: "tv")
 
-            let (movieResult, tvResult) = try await (movieGenresResult, tvGenresResult)
+            let (movieResult, tvResult) = try await (
+                movieGenresResult,
+                tvGenresResult
+            )
 
             let movieNames = (movieResult["genres"] as? [[String: Any]] ?? [])
                 .compactMap { $0["name"] as? String }
+
             let tvNames = (tvResult["genres"] as? [[String: Any]] ?? [])
                 .compactMap { $0["name"] as? String }
+
             let combined = Array(Set(movieNames + tvNames)).sorted()
 
             await MainActor.run {
                 availableGenres = combined
-                if let user {
-                    selectedGenres = Set(user.preferredGenres)
-                }
+                selectedGenres = Set(user?.preferredGenres ?? [])
                 isLoading = false
             }
         } catch {
-            print("Failed to load genres: \(error)")
-            await MainActor.run { isLoading = false }
+            await MainActor.run {
+                isLoading = false
+                showErrorMessage(
+                    "We couldn't load the available genres. Please try again."
+                )
+            }
         }
     }
 }

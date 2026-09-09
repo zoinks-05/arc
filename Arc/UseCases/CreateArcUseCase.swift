@@ -20,24 +20,47 @@ final class CreateArcUseCase {
         contentType: String,
         dataStore: DummyDataStore,
         createdAt: Date = Date()
-    ) {
+    ) throws {
+
         let trimmedReflection = reflection.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedReflection.isEmpty else {
-            return
+        if trimmedReflection.count < 50 {
+            throw ArcError.reflectionTooShort
         }
 
-        guard let user = dataStore.users.first(
-            where: { $0.username == "localUser" }
-        ) else {
-            return
+        if trimmedReflection.count > 75 {
+            throw ArcError.reflectionTooLong
         }
 
-        let trimmedDescription = description?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalDescription = (trimmedDescription?.isEmpty ?? true) ? nil : trimmedDescription
+        if let description,
+           description.trimmingCharacters(in: .whitespacesAndNewlines).count > 250 {
+            throw ArcError.descriptionTooLong
+        }
 
-        let clampedRating = min(max(rating, 0), 10)
-        let limitedThemes = Array(themes.prefix(3))
+        guard ["feels", "believes", "thinks"].contains(sentiment.lowercased()) else {
+            throw ArcError.invalidSentiment
+        }
+
+        if themes.count > 3 {
+            throw ArcError.tooManyGenres
+        }
+
+        guard (0...10).contains(rating) else {
+            throw ArcError.invalidRating
+        }
+
+        guard let user = dataStore.users.first(where: {
+            $0.username.lowercased() == "localuser"
+        }) else {
+            throw UserError.localUserNotFound
+        }
+
+        let trimmedDescription = description?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let finalDescription = trimmedDescription?.isEmpty == true
+            ? nil
+            : trimmedDescription
 
         let newArc = ArcModel(
             id: UUID(),
@@ -47,8 +70,8 @@ final class CreateArcUseCase {
             reflection: trimmedReflection,
             sentiment: sentiment,
             desription: finalDescription,
-            themes: limitedThemes,
-            rating: clampedRating,
+            themes: themes,
+            rating: rating,
             likes: 0,
             reposts: 0,
             createdAt: createdAt,
@@ -59,7 +82,6 @@ final class CreateArcUseCase {
         )
 
         dataStore.arcs.append(newArc)
-
         dataStore.saveData()
     }
 }

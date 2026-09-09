@@ -14,19 +14,26 @@ final class SubmitCommentUseCase {
         arcID: UUID,
         dataStore: DummyDataStore,
         createdAt: Date = Date()
-    ) {
-        let trimmed = content.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+    ) throws {
 
-        guard !trimmed.isEmpty else {
-            return
+        guard dataStore.arcs.contains(where: { $0.id == arcID }) else {
+            throw CommentError.arcNotFound
         }
 
-        guard let user = dataStore.users.first(
-            where: { $0.username == "localUser" }
-        ) else {
-            return
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.isEmpty {
+            throw CommentError.commentEmpty
+        }
+
+        if trimmed.count > 250 {
+            throw CommentError.commentTooLong
+        }
+
+        guard let user = dataStore.users.first(where: {
+            $0.username.lowercased() == "localuser"
+        }) else {
+            throw UserError.localUserNotFound
         }
 
         let newComment = CommentModel(
@@ -40,7 +47,6 @@ final class SubmitCommentUseCase {
         )
 
         dataStore.comments.append(newComment)
-
         dataStore.saveData()
     }
 }

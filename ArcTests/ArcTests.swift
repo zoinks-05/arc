@@ -6,11 +6,10 @@
 //
 
 import Testing
+@testable import Arc
+import Foundation
 
+@Suite("Arc UI Tests")
 struct ArcTests {
-
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-    }
 
 }

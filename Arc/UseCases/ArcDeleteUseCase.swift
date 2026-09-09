@@ -12,12 +12,22 @@ final class ArcDeleteUseCase {
     func execute(
         arcID: UUID,
         dataStore: DummyDataStore
-    ) {
+    ) throws {
 
-        guard dataStore.arcs.contains(
-            where: { $0.id == arcID }
-        ) else {
-            return
+        guard let arcIndex = dataStore.arcs.firstIndex(where: { $0.id == arcID }) else {
+            throw ArcError.arcNotFound
+        }
+
+        let localUser = dataStore.users.first(where: {
+            $0.username.lowercased() == "localuser"
+        })
+
+        guard let localUser else {
+            throw UserError.localUserNotFound
+        }
+
+        guard dataStore.arcs[arcIndex].userID == localUser.id else {
+            throw ArcError.arcNotOwnedByLocalUser
         }
 
         let commentIDs = dataStore.comments
@@ -32,9 +42,7 @@ final class ArcDeleteUseCase {
             $0.arcID == arcID
         }
 
-        dataStore.arcs.removeAll {
-            $0.id == arcID
-        }
+        dataStore.arcs.remove(at: arcIndex)
 
         dataStore.saveData()
     }

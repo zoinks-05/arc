@@ -13,16 +13,15 @@ final class UserUpdatesGenresUseCase {
         userID: UUID,
         dataStore: DummyDataStore,
         updatedGenres: [String]
-    ) {
+    ) throws {
 
-        guard let i = dataStore.users.firstIndex(
-            where: { $0.id == userID }
-        ) else {
-            return
+        guard let i = dataStore.users.firstIndex(where: {
+            $0.id == userID
+        }) else {
+            throw UserError.userNotFound
         }
-        
-        dataStore.users[i].preferredGenres = updatedGenres
 
+        dataStore.users[i].preferredGenres = updatedGenres
         dataStore.saveData()
     }
 }

@@ -8,56 +8,55 @@
 import SwiftUI
 
 struct SearchView: View {
-    
-    @State private var Title = ""
-    @State private var Results: [[String: Any]] = []
+    @State private var title = ""
+    @State private var results: [[String: Any]] = []
     @State private var isLoading = false
-    @State private var errorMessage = ""
+    @State private var errorMessage: String?
     @State private var type = "movie"
-    
     @State private var showResults = false
 
-    // Provide a dataStore so we can navigate to ContentDetailView
     @State var dataStore: DummyDataStore = DummyDataStore()
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
                 HStack {
-                    TextField("Search", text: $Title)
+                    TextField("Search", text: $title)
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .glassEffect(.regular, in: Capsule())
-                    
-                    Spacer()
+
                     Button {
-                        type = (type == "movie" ? "tv" : "movie")
+                        type = type == "movie" ? "tv" : "movie"
                     } label: {
                         Image(systemName: type == "movie" ? "film" : "tv")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                             .padding(10)
                             .glassEffect(.regular, in: Circle())
                     }
+
                     Button {
                         Task {
                             await search()
                         }
                     } label: {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                             .padding(10)
                             .glassEffect(.regular, in: Circle())
                     }
+                    .disabled(isLoading)
                 }
-                
+
                 if isLoading {
                     ProgressView()
                 }
-                
-                if !errorMessage.isEmpty {
+
+                if let errorMessage {
                     Text(errorMessage)
                         .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding()
@@ -65,33 +64,55 @@ struct SearchView: View {
         .sheet(isPresented: $showResults) {
             NavigationStack {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        // Build a collection with stable IDs from TMDB results
-                        ForEach(Results.compactMap { res -> (id: Int, dict: [String: Any])? in
-                            guard let id = res["id"] as? Int else { return nil }
-                            return (id: id, dict: res)
-                        }, id: \.id) { item in
-                            let res = item.dict
-                            let resID = item.id
-                            let title = (type == "movie")
-                                ? (res["title"] as? String ?? "Unknown")
-                                : (res["name"] as? String ?? "Unknown")
-                            
-                            NavigationLink(
-                                destination: ContentDetailView(contentID: resID, type: type, dataStore: dataStore)
-                            ) {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ],
+                        spacing: 16
+                    ) {
+                        ForEach(
+                            results.compactMap { result -> (id: Int, data: [String: Any])? in
+                                guard let id = result["id"] as? Int else {
+                                    return nil
+                                }
+
+                                return (id: id, data: result)
+                            },
+                            id: \.id
+                        ) { item in
+                            let result = item.data
+                            let contentID = item.id
+
+                            let title = type == "movie"
+                                ? (result["title"] as? String ?? "Unknown")
+                                : (result["name"] as? String ?? "Unknown")
+
+                            NavigationLink {
+                                ContentDetailView(
+                                    contentID: contentID,
+                                    type: type,
+                                    dataStore: dataStore
+                                )
+                            } label: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    // Poster
-                                    AsyncImage(url: APIService.shared.imageURL(path: res["poster_path"] as? String)) { state in
+                                    AsyncImage(
+                                        url: APIService.shared.imageURL(
+                                            path: result["poster_path"] as? String
+                                        )
+                                    ) { state in
                                         switch state {
                                         case .success(let image):
                                             image
                                                 .resizable()
                                                 .scaledToFill()
+
                                         case .failure:
                                             Color.gray.opacity(0.3)
+
                                         case .empty:
                                             ProgressView()
+
                                         @unknown default:
                                             Color.gray.opacity(0.3)
                                         }
@@ -99,7 +120,7 @@ struct SearchView: View {
                                     .frame(width: 120, height: 165)
                                     .clipped()
                                     .cornerRadius(8)
-                                    
+
                                     Text(title)
                                         .font(.caption)
                                         .foregroundStyle(.primary)
@@ -110,7 +131,7 @@ struct SearchView: View {
                                 .background(Color(.secondarySystemBackground))
                                 .cornerRadius(12)
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -121,28 +142,26 @@ struct SearchView: View {
             .presentationDetents([.medium, .large])
         }
     }
-    
-    func search() async {
+
+    private func search() async {
         isLoading = true
-        errorMessage = ""
-        
-        defer{
+        errorMessage = nil
+
+        defer {
             isLoading = false
         }
-        
+
         do {
-            Results = try await SearchContentUseCase().execute(query: Title, type: type)
-            showResults = !Results.isEmpty
+            results = try await SearchContentUseCase().execute(
+                query: title,
+                type: type
+            )
+
+            showResults = !results.isEmpty
+        } catch let error as ContentError {
+            errorMessage = error.localizedDescription
         } catch {
-            if let err = error as? SearchContentUseCase.SearchError {
-                errorMessage = err.errorMessage
-            } else {
-                errorMessage = error.localizedDescription
-            }
+            errorMessage = "We couldn't complete the search. Please try again."
         }
     }
-}
-
-#Preview {
-    SearchView()
 }

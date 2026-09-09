@@ -14,19 +14,32 @@ final class SubmitReplyUseCase {
         commentID: UUID,
         dataStore: DummyDataStore,
         createdAt: Date = Date()
-    ) {
-        let trimmed = content.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+    ) throws {
 
-        guard !trimmed.isEmpty else {
-            return
+        guard let comment = dataStore.comments.first(where: {
+            $0.id == commentID
+        }) else {
+            throw ReplyError.parentCommentNotFound
         }
 
-        guard let user = dataStore.users.first(
-            where: { $0.username == "localUser" }
-        ) else {
-            return
+        if comment.text == "This comment has been removed by the user" {
+            throw ReplyError.parentCommentDeleted
+        }
+
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.isEmpty {
+            throw ReplyError.replyEmpty
+        }
+
+        if trimmed.count > 250 {
+            throw ReplyError.replyTooLong
+        }
+
+        guard let user = dataStore.users.first(where: {
+            $0.username.lowercased() == "localuser"
+        }) else {
+            throw UserError.localUserNotFound
         }
 
         let newReply = ReplyModel(
@@ -40,7 +53,6 @@ final class SubmitReplyUseCase {
         )
 
         dataStore.replies.append(newReply)
-
         dataStore.saveData()
     }
 }

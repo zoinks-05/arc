@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ScrollPageView: View {
-    
+
     enum ScrollMode {
         case feed
         case focused(contentID: Int)
@@ -16,33 +16,27 @@ struct ScrollPageView: View {
     }
 
     @State private var selectedTab = "movie"
-    @State private var prevTab: String?
     @State private var type = "movie"
-    @State private var commentCounts = 0
-
     @State private var spoilerRevealed: Set<UUID> = []
 
     @State var dataStore: DummyDataStore
     @State var mode: ScrollMode = .feed
 
-
     @State private var scrollPosition: UUID?
-
-    @State private var showDetail = false
     @State private var showRecommendation = false
     @State private var showCreateArc = false
     @State private var showComments = false
-
     @State private var detailsCache: [UUID: [String: Any]] = [:]
     @State private var feedOrder: [UUID] = []
-    
+
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    private let toggleArcLike = ArcLikesUseCase()
+    private let toggleRepostUseCase = ArcRepostUseCase()
 
     private var users: [UserModel] {
         dataStore.users
-    }
-
-    private var arcs: [ArcModel] {
-        dataStore.arcs
     }
 
     private var comments: [CommentModel] {
@@ -56,610 +50,812 @@ struct ScrollPageView: View {
     private var filteredArcs: [ArcModel] {
         filteredArcs(for: mode)
     }
-    
+
     private var startingArcID: UUID? {
-
         switch mode {
-
         case .profile(_, _, let startingArcID):
             return startingArcID
-
         default:
             return nil
         }
     }
-    
-    private var viewerRef : UserModel? {
-        users.first {$0.username == "localUser"}
-    }
 
-    private func commentsForArcCount(_ arc: ArcModel) -> Int {
-        var res = 0
-        let filtered = comments.filter { $0.arcID == arc.id }
-        for reply in replies {
-            if filtered.contains(where: { $0.id == reply.commentID }) {
-                res += 1
-            }
+    private var viewerRef: UserModel? {
+        users.first {
+            $0.username.lowercased() == "localuser"
         }
-        return res + filtered.count
-    }
-
-    private func userDetails(_ arc: ArcModel) -> UserModel? {
-        users.first { $0.id == arc.userID }
     }
 
     private var currentArc: ArcModel? {
-        guard !filteredArcs.isEmpty else { return nil }
-        // Look the arc up by its own id rather than by index.
-        guard let scrollPosition,
-              let match = filteredArcs.first(where: { $0.id == scrollPosition }) else {
+        guard !filteredArcs.isEmpty else {
+            return nil
+        }
+
+        guard let scrollPosition else {
             return filteredArcs.first
         }
-        return match
-    }
 
-    private var currentTitle: String {
-        guard let arc = currentArc,
-              let details = detailsCache[arc.id] else {
-            return "Loading..."
-        }
-        if arc.contentType == "movie" {
-            let ids = filteredArcs.map(\.id)
-            let duplicates = Dictionary(grouping: ids, by: { $0 }).filter { $0.value.count > 1 }
-            if !duplicates.isEmpty {
-                print("Duplicate arc IDs found:", duplicates.keys)
-            }
-            return (details["title"] as? String) ?? "Unknown Title"
-        } else {
-            return (details["name"] as? String) ?? "Unknown Title"
-        }
+        return filteredArcs.first {
+            $0.id == scrollPosition
+        } ?? filteredArcs.first
     }
 
     private var currentPosterPath: String? {
-        guard let arc = currentArc,
-              let details = detailsCache[arc.id] else {
+        guard let arc = currentArc else {
             return nil
         }
-        return details["poster_path"] as? String
-    }
 
-    private let toggleArcLike = ArcLikesUseCase()
-    private let toggleRepostUseCase = ArcRepostUseCase()
+        return detailsCache[arc.id]?["poster_path"] as? String
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 backdrop(path: currentPosterPath)
-                
-                if selectedTab == "movie" || selectedTab == "tv" {
-                    if filteredArcs.isEmpty {
-                        Text("No items for \(type.uppercased())")
-                            .font(.headline)
-                            .padding()
-                    } else {
-                        ScrollView(
-                            .vertical,
-                            showsIndicators: false
-                        ) {
 
-                            LazyVStack(spacing: 0) {
+                if case .feed = mode, selectedTab == "search" {
+                    VStack {
+                        Spacer()
+                            .frame(height: 80)
 
-                                ForEach(filteredArcs) { arc in
-
-                                    arcPage(arc: arc)
-                                        .containerRelativeFrame(
-                                            [.horizontal, .vertical]
-                                        )
-                                        .id(arc.id)
-                                        .task {
-                                            await loadDetailsIfNeeded(for: arc)
-                                        }
-                                }
-                            }
-                            .scrollTargetLayout()
-                        }
-                        .scrollTargetBehavior(.paging)
-                        .scrollPosition(id: $scrollPosition)
-                        .onAppear {
-                            if feedOrder.isEmpty {
-                                buildFeedOrder()
-                            }
-                            if scrollPosition == nil {
-                                scrollPosition = startingArcID
-                            }
-                        }
-                        .onChange(of: type) { _, _ in
-                            buildFeedOrder()
-                        }
-                        .onChange(of: viewerRef?.preferredGenres) { _, _ in
-                            buildFeedOrder()
-                        }
-                    }
-                }
-                
-                if case .feed = mode {
-
-                    VStack(spacing: 0) {
-
-                        HStack {
-
-                            scrollPage_button(
-                                newtype: nil,
-                                image: "plus",
-                                present: $showCreateArc
-                            )
-                            .navigationDestination(isPresented: $showCreateArc) {
-
-                                if let arc = currentArc {
-
-                                    CreateArc(
-                                        contentID: arc.contentID,
-                                        contentType: arc.contentType,
-                                        mode: .new,
-                                        dataStore: dataStore
-                                    )
-                                }
-                            }
-
-                            Spacer()
-
-                            scrollPage_button(
-                                tab: "movie",
-                                newtype: "movie",
-                                image: "film"
-                            )
-
-                            scrollPage_button(
-                                tab: "tv",
-                                newtype: "tv",
-                                image: "tv"
-                            )
-
-                            scrollPage_button(
-                                tab: "search",
-                                newtype: nil,
-                                image: "magnifyingglass"
-                            )
-
-                            Spacer()
-
-                            scrollPage_button(
-                                newtype: nil,
-                                image: "slider.horizontal.3",
-                                present: $showRecommendation
-                            )
-                            .navigationDestination(
-                                isPresented: $showRecommendation
-                            ) {
-                                // Find the local user (dataset uses "localUser")
-                                let localUser = users.first { $0.username == "localUser" }
-                                RecommendationsComponent(dataStore: dataStore, user: localUser)
-                            }
-                        }
-
-                        .padding(.horizontal)
-                        .padding(.top, 20)
-                        .padding(.bottom, 12)
-
-                        if selectedTab == "search" {
-
-                            SearchView(dataStore: dataStore)
-                                .transition(.scale)
-                        }
+                        SearchView(dataStore: dataStore)
+                            .transition(.scale)
 
                         Spacer()
                     }
+                } else if filteredArcs.isEmpty {
+                    emptyState
+                } else {
+                    arcScrollView
+                }
 
-                    .background(
-                        Rectangle()
-                            .fill(.ultraThinMaterial)
-                            .mask(
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: .black, location: 0.3),
-                                        .init(color: .clear, location: 1)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .center
-                                )
-                            )
-                            .frame(height: 140)
-                            .frame(
-                                maxHeight: .infinity,
-                                alignment: .top
-                            )
-                            .ignoresSafeArea(edges: .top)
-                    )
+                if case .feed = mode {
+                    feedControls
                 }
             }
             .sheet(isPresented: $showComments) {
-                if let arc = currentArc {
-                    CommentComponent(
-                        description: arc.desription,
-                        createdAt: arc.createdAt,
-                        dataStore: dataStore,
-                        arcID: arc.id
-                    )
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                } else {
-                    Text("No comments")
-                        .padding()
-                        .presentationDetents([.fraction(0.35), .large])
-                        .presentationDragIndicator(.visible)
+                commentsSheet
+            }
+            .alert("Something needs attention", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(
+                    errorMessage
+                    ?? "Something went wrong. Please try again."
+                )
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(
+                systemName: selectedTab == "movie"
+                ? "film.stack"
+                : "tv"
+            )
+            .font(.system(size: 45))
+            .foregroundStyle(.secondary)
+
+            Text("No Arcs here yet")
+                .font(.headline)
+
+            Text("Be the first to leave your mark and create an Arc.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
+    }
+
+    private var arcScrollView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(filteredArcs) { arc in
+                    arcPage(arc: arc)
+                        .containerRelativeFrame([.horizontal, .vertical])
+                        .id(arc.id)
+                        .task {
+                            await loadDetailsIfNeeded(for: arc)
+                        }
                 }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $scrollPosition)
+        .onAppear {
+            if feedOrder.isEmpty {
+                buildFeedOrder()
+            }
+
+            if scrollPosition == nil {
+                scrollPosition = startingArcID
+            }
+        }
+        .onChange(of: type) { _, newType in
+            feedOrder = []
+            buildFeedOrder()
+            scrollPosition = nil
+            spoilerRevealed.removeAll()
+        }
+        .onChange(of: viewerRef?.preferredGenres) { _, _ in
+            buildFeedOrder()
+        }
+    }
+
+    private var feedControls: some View {
+        VStack(spacing: 0) {
+            HStack {
+                scrollPageButton(
+                    image: "plus",
+                    present: $showCreateArc
+                )
+                .navigationDestination(isPresented: $showCreateArc) {
+                    if let arc = currentArc {
+                        CreateArc(
+                            contentID: arc.contentID,
+                            contentType: arc.contentType,
+                            mode: .new,
+                            dataStore: dataStore
+                        )
+                    }
+                }
+
+                Spacer()
+
+                scrollPageButton(
+                    tab: "movie",
+                    newType: "movie",
+                    image: "film"
+                )
+
+                scrollPageButton(
+                    tab: "tv",
+                    newType: "tv",
+                    image: "tv"
+                )
+
+                scrollPageButton(
+                    tab: "search",
+                    image: "magnifyingglass"
+                )
+
+                Spacer()
+
+                scrollPageButton(
+                    image: "slider.horizontal.3",
+                    present: $showRecommendation
+                )
+                .navigationDestination(isPresented: $showRecommendation) {
+                    RecommendationsComponent(
+                        dataStore: dataStore,
+                        user: viewerRef
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+            Spacer()
+        }
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.3),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .frame(height: 140)
+                .frame(
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
+                .ignoresSafeArea(edges: .top)
+        )
+    }
+
+    private var commentsSheet: some View {
+        Group {
+            if let arc = currentArc {
+                CommentComponent(
+                    description: arc.desription,
+                    createdAt: arc.createdAt,
+                    dataStore: dataStore,
+                    arcID: arc.id
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            } else {
+                Text("No comments")
+                    .padding()
+                    .presentationDetents([.fraction(0.35), .large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
 
     @ViewBuilder
-    func arcPage(arc: ArcModel) -> some View {
+    private func arcPage(arc: ArcModel) -> some View {
         let details = detailsCache[arc.id]
-        let title: String = {
-            if let d = details {
-                return arc.contentType == "movie"
-                ? (d["title"] as? String ?? "Unknown Title")
-                : (d["name"] as? String ?? "Unknown Title")
-            }
-            return "Loading..."
-        }()
+        let title = contentTitle(for: arc, details: details)
         let posterPath = details?["poster_path"] as? String
         let user = users.first { $0.id == arc.userID }
-        let localCommentCount = commentsForArcCount(arc)
+        let commentCount = commentsForArcCount(arc)
         let isRevealed = spoilerRevealed.contains(arc.id)
 
         VStack(spacing: 0) {
-            Color.clear.frame(height:100)
+            Color.clear
+                .frame(height: 100)
+
+            Text(title)
+                .font(.title.bold())
+                .padding(.horizontal)
+                .padding(.vertical, 5)
+                .glassEffect(.regular, in: Capsule())
+                .lineLimit(1)
+                .padding(.top)
+                .truncationMode(.tail)
+                .frame(maxWidth: 250)
+                .padding(.top)
+
             HStack {
-                Text(title)
-                    .font(.title.bold())
-                    .padding(.horizontal)
-                    .padding(.vertical, 5)
-                    .glassEffect(.regular, in: Capsule())
-                    .lineLimit(1)
-                    .padding(.top)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 250)
-            }
-            .padding(.top)
+                VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        NavigationLink {
+                            ProfileView(
+                                dataStore: dataStore,
+                                user: user
+                            )
+                        } label: {
+                            HStack {
+                                Text(
+                                    user.map {
+                                        "\($0.username) \(arc.sentiment)"
+                                    } ?? arc.sentiment
+                                )
+                                .font(.title.bold())
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .padding(.horizontal)
+                                .padding(.vertical, 5)
+                                .glassEffect(.regular, in: Capsule())
 
-
-            HStack {
-                Group {
-                    VStack(alignment: .leading) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            // Username + sentiment row becomes tappable to push ProfileView
-                            NavigationLink {
-                                ProfileView(dataStore: dataStore, user: user)
-                            } label: {
-                                HStack {
-                                    if let user {
-                                        Text("\(user.username) \(arc.sentiment)")
-                                            .font(.title.bold())
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                            .padding(.horizontal)
-                                            .padding(.vertical, 5)
-                                            .glassEffect(.regular, in: Capsule())
-                                    } else {
-                                        Text(arc.sentiment)
-                                            .font(.title.bold())
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                            .padding(.horizontal)
-                                            .padding(.vertical, 5)
-                                            .glassEffect(.regular, in: Capsule())
-                                    }
-                                    Spacer()
-                                }
+                                Spacer()
                             }
-                            .buttonStyle(.plain)
-
-                            GeometryReader { geo in
-                                VStack(spacing: 0) {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(arc.reflection)
-                                            .font(.title)
-                                            .padding()
-                                            .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                                    .frame(height: geo.size.height * 0.8, alignment: .topLeading)
-
-                                    Divider()
-                                        .padding(.horizontal)
-
-                                    HStack {
-                                        Text("\(arc.rating)")
-                                            .font(.caption.bold())
-                                        Image(systemName: "star.fill")
-                                            .foregroundColor(.yellow)
-                                        if arc.isSpoiler {
-                                            Image(systemName: isRevealed ? "eye" : "eye.slash")
-                                                .onTapGesture {
-                                                    withAnimation {
-                                                        if isRevealed {
-                                                            spoilerRevealed.remove(arc.id)
-                                                        } else {
-                                                            spoilerRevealed.insert(arc.id)
-                                                        }
-                                                    }
-                                                }
-                                        }
-                                        Spacer()
-                                        if !arc.themes.isEmpty {
-                                            HStack(spacing: 6) {
-                                                ForEach(arc.themes, id: \.self) { theme in
-                                                    Text(theme)
-                                                        .font(.caption)
-                                                        .padding(.horizontal, 8)
-                                                        .padding(.vertical, 4)
-                                                        .lineLimit(1)
-                                                }
-                                            }
-                                            .padding(.horizontal)
-                                            .padding(.bottom, 6)
-                                        }
-                                    }
-                                    .frame(height: geo.size.height * 0.2)
-                                    .padding(.horizontal, 16)
-                                }
-                            }
-                            .frame(height: 300)
-                            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
                         }
-                    }
-                    .padding()
+                        .buttonStyle(.plain)
 
-                    VStack {
-                        scrollPage_social_button(image: arc.hasLiked ? "heart.fill" : "heart", usecase: .like, arcID: arc.id, count: arc.likes)
-                        scrollPage_social_button(image: "message", count: localCommentCount, present: $showComments)
-                        scrollPage_social_button(
-                            image: arc.hasReposted ? "repeat.1" : "repeat", usecase: .repost, arcID: arc.id, count: arc.reposts
+                        GeometryReader { geo in
+                            VStack(spacing: 0) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(arc.reflection)
+                                        .font(.title)
+                                        .padding()
+                                        .blur(
+                                            radius: arc.isSpoiler && !isRevealed
+                                            ? 20
+                                            : 0
+                                        )
+                                }
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .topLeading
+                                )
+                                .frame(
+                                    height: geo.size.height * 0.8,
+                                    alignment: .topLeading
+                                )
+
+                                Divider()
+                                    .padding(.horizontal)
+
+                                HStack {
+                                    Text("\(arc.rating)")
+                                        .font(.caption.bold())
+
+                                    Image(systemName: "star.fill")
+                                        .foregroundStyle(.yellow)
+
+                                    if arc.isSpoiler {
+                                        Image(
+                                            systemName: isRevealed
+                                            ? "eye"
+                                            : "eye.slash"
+                                        )
+                                        .onTapGesture {
+                                            withAnimation {
+                                                toggleSpoiler(for: arc.id)
+                                            }
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    if !arc.themes.isEmpty {
+                                        HStack(spacing: 6) {
+                                            ForEach(
+                                                arc.themes,
+                                                id: \.self
+                                            ) { theme in
+                                                Text(theme)
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                        .padding(.bottom, 6)
+                                    }
+                                }
+                                .frame(height: geo.size.height * 0.2)
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                        .frame(height: 300)
+                        .glassEffect(
+                            .regular,
+                            in: RoundedRectangle(cornerRadius: 20)
                         )
                     }
-                    .padding(.horizontal, 5)
                 }
+                .padding()
+
+                VStack {
+                    scrollPageSocialButton(
+                        image: arc.hasLiked
+                        ? "heart.fill"
+                        : "heart",
+                        useCase: .like,
+                        arcID: arc.id,
+                        count: arc.likes
+                    )
+
+                    scrollPageSocialButton(
+                        image: "message",
+                        count: commentCount,
+                        present: $showComments
+                    )
+
+                    scrollPageSocialButton(
+                        image: arc.hasReposted
+                        ? "repeat.1"
+                        : "repeat",
+                        useCase: .repost,
+                        arcID: arc.id,
+                        count: arc.reposts
+                    )
+                }
+                .padding(.horizontal, 5)
             }
 
             HStack {
                 VStack(alignment: .leading) {
-                    Text(arc.desription ?? "")
-                        .font(.subheadline)
-                        .lineLimit(3)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, 8)
-                        .frame(maxWidth: 250, alignment: .leading)
-                        .blur(radius: arc.isSpoiler && !isRevealed ? 20 : 0)
+                    if let description = arc.desription,
+                       !description.isEmpty {
+                        Text(description)
+                            .font(.subheadline)
+                            .lineLimit(3)
+                            .truncationMode(.tail)
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: 250, alignment: .leading)
+                            .blur(
+                                radius: arc.isSpoiler && !isRevealed
+                                ? 20
+                                : 0
+                            )
+                    } else {
+                        Text("No description provided")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                    }
 
                     Text(arc.createdAt, style: .date)
                         .font(.subheadline)
-                        .lineLimit(3)
-                        .truncationMode(.tail)
                         .padding(.horizontal, 8)
-                        .frame(maxWidth: 150, alignment: .leading)
                 }
                 .frame(height: 144, alignment: .bottom)
+
                 Spacer()
-                VStack {
-                    Spacer()
-                    if let url = APIService.shared.imageURL(path: posterPath) {
-                        NavigationLink {
-                            ContentDetailView(contentID: arc.contentID, type: arc.contentType, dataStore: dataStore)
-                        } label: {
-                            AsyncImage(url: url) { state in
-                                switch state {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                case .failure:
-                                    Color.gray
-                                case .empty:
-                                    ProgressView()
-                                @unknown default:
-                                    Color.gray
-                                }
+
+                if let url = APIService.shared.imageURL(path: posterPath) {
+                    NavigationLink {
+                        ContentDetailView(
+                            contentID: arc.contentID,
+                            type: arc.contentType,
+                            dataStore: dataStore
+                        )
+                    } label: {
+                        AsyncImage(url: url) { state in
+                            switch state {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+
+                            case .failure:
+                                Color.gray
+
+                            case .empty:
+                                ProgressView()
+
+                            @unknown default:
+                                Color.gray
                             }
-                            .frame(width: 90, height: 144)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(.white.opacity(0.5), lineWidth: 1.5)
-                            )
-                            .shadow(radius: 6)
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 90, height: 144)
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: 14,
+                                style: .continuous
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(
+                                cornerRadius: 14,
+                                style: .continuous
+                            )
+                            .stroke(
+                                .white.opacity(0.5),
+                                lineWidth: 1.5
+                            )
+                        )
+                        .shadow(radius: 6)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .padding(.bottom, 72)
-            
         }
         .onTapGesture(count: 2) {
-            toggleArcLike.execute(arcID: arc.id, dataStore: dataStore)
+            handleArcLike(arc)
         }
     }
 }
 
 extension ScrollPageView {
-    enum SocialUseCases {
+
+    enum SocialUseCase {
         case like
         case repost
-        case view
     }
 
-    func loadDetailsIfNeeded(for arc: ArcModel) async {
-        if detailsCache[arc.id] != nil { return }
+    private func contentTitle(
+        for arc: ArcModel,
+        details: [String: Any]?
+    ) -> String {
+        guard let details else {
+            return "Loading..."
+        }
+
+        if arc.contentType == "movie" {
+            return details["title"] as? String ?? "Unknown Title"
+        }
+
+        return details["name"] as? String ?? "Unknown Title"
+    }
+
+    private func commentsForArcCount(_ arc: ArcModel) -> Int {
+        let arcComments = comments.filter {
+            $0.arcID == arc.id
+        }
+
+        let commentIDs = Set(arcComments.map(\.id))
+
+        let replyCount = replies.filter {
+            commentIDs.contains($0.commentID)
+        }.count
+
+        return arcComments.count + replyCount
+    }
+
+    private func toggleSpoiler(for arcID: UUID) {
+        if spoilerRevealed.contains(arcID) {
+            spoilerRevealed.remove(arcID)
+        } else {
+            spoilerRevealed.insert(arcID)
+        }
+    }
+
+    private func handleArcLike(_ arc: ArcModel) {
         do {
-            let details = try await APIService.shared.fetchContentDetails(
-                ContentID: arc.contentID,
-                type: arc.contentType
+            try toggleArcLike.execute(
+                arcID: arc.id,
+                dataStore: dataStore
             )
-            await MainActor.run {
-                detailsCache[arc.id] = details
-            }
+        } catch let error as ArcError {
+            showErrorMessage(error.localizedDescription)
         } catch {
-            print("Failed to load details for contentID \(arc.contentID): \(error)")
+            showErrorMessage(
+                "Your like could not be updated. Please try again."
+            )
         }
     }
 
     @ViewBuilder
-    func scrollPage_button(tab: String? = nil, newtype: String? = nil, image: String, present: Binding<Bool>? = nil) -> some View {
+    private func scrollPageButton(
+        tab: String? = nil,
+        newType: String? = nil,
+        image: String,
+        present: Binding<Bool>? = nil
+    ) -> some View {
         Button {
             withAnimation(.bouncy()) {
                 if let tab {
-                    prevTab = selectedTab
                     selectedTab = tab
                 }
-                if let newtype {
-                    if type != newtype {
-                        type = newtype
-                        scrollPosition = nil
-                    }
+
+                if let newType, type != newType {
+                    type = newType
+                    scrollPosition = nil
                 }
             }
+
             present?.wrappedValue = true
         } label: {
             Image(systemName: image)
                 .font(.title)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .padding(10)
         }
     }
 
-    func scrollPage_social_button(tab: String? = nil, image: String, conditional: Binding<Bool>? = nil, usecase: SocialUseCases? = nil, arcID: UUID? = nil, count: Int = 0, present: Binding<Bool>? = nil) -> some View {
+    private func scrollPageSocialButton(
+        image: String,
+        useCase: SocialUseCase? = nil,
+        arcID: UUID? = nil,
+        count: Int = 0,
+        present: Binding<Bool>? = nil
+    ) -> some View {
         VStack {
             Button {
                 withAnimation(.bouncy()) {
-                    if let tab { selectedTab = tab }
-                    if let conditional { conditional.wrappedValue.toggle() }
-                    switch usecase {
+                    switch useCase {
                     case .like:
-                        if let arcID { toggleArcLike.execute(arcID: arcID, dataStore: dataStore) }
+                        if let arcID {
+                            handleArcLike(
+                                ArcModel(
+                                    id: arcID,
+                                    userID: UUID(),
+                                    contentID: 0,
+                                    contentType: "",
+                                    reflection: "",
+                                    sentiment: "",
+                                    desription: nil,
+                                    themes: [],
+                                    rating: 0,
+                                    likes: 0,
+                                    reposts: 0,
+                                    createdAt: Date(),
+                                    isSpoiler: false,
+                                    hasLiked: false,
+                                    hasReposted: false,
+                                    hasSeen: false
+                                )
+                            )
+                        }
+
                     case .repost:
-                        if let arcID { toggleRepostUseCase.execute(arcID: arcID, dataStore: dataStore) }
-                    case .none, .some(.view):
+                        if let arcID {
+                            handleArcRepost(arcID: arcID)
+                        }
+
+                    case .none:
                         break
                     }
                 }
+
                 present?.wrappedValue = true
             } label: {
                 Image(systemName: image)
                     .font(.title)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .padding(3)
             }
+
             if count > 0 {
-                Text(String(formatSocial(count: count)))
+                Text(formatSocial(count: count))
             }
         }
     }
 
-    func formatSocial(count: Int) -> String {
-        let num = Double(count)
+    private func handleArcRepost(arcID: UUID) {
+        do {
+            try toggleRepostUseCase.execute(
+                arcID: arcID,
+                dataStore: dataStore
+            )
+        } catch let error as ArcError {
+            showErrorMessage(error.localizedDescription)
+        } catch {
+            showErrorMessage(
+                "Your repost could not be updated. Please try again."
+            )
+        }
+    }
 
-        switch num {
+    private func formatSocial(count: Int) -> String {
+        let number = Double(count)
+
+        switch number {
         case 1_000_000_000...:
-            return String(format: "%.1fb", num / 1_000_000_000)
+            return String(format: "%.1fb", number / 1_000_000_000)
+
         case 1_000_000...:
-            return String(format: "%.1fm", num / 1_000_000)
+            return String(format: "%.1fm", number / 1_000_000)
+
         case 1_000...:
-            return String(format: "%.1fk", num / 1_000)
+            return String(format: "%.1fk", number / 1_000)
+
         default:
             return "\(count)"
         }
     }
 
-    func backdrop(path: String?) -> some View {
+    private func loadDetailsIfNeeded(for arc: ArcModel) async {
+        guard detailsCache[arc.id] == nil else {
+            return
+        }
+
+        do {
+            let details = try await APIService.shared.fetchContentDetails(
+                ContentID: arc.contentID,
+                type: arc.contentType
+            )
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                detailsCache[arc.id] = details
+            }
+        } catch {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard arc.contentType == type else {
+                    return
+                }
+
+                showErrorMessage(
+                    "We couldn't load this movie or TV show. Please try again."
+                )
+            }
+        }
+    }
+
+    private func showErrorMessage(_ message: String) {
+        errorMessage = message
+        showError = true
+    }
+
+    private func backdrop(path: String?) -> some View {
         GeometryReader { geo in
-            AsyncImage(url: APIService.shared.imageURL(path: path)) { state in
+            AsyncImage(
+                url: APIService.shared.imageURL(path: path)
+            ) { state in
                 switch state {
                 case .success(let image):
                     image
                         .resizable()
                         .scaledToFill()
+
                 case .failure, .empty:
                     Color.black
+
                 @unknown default:
                     Color.black
                 }
             }
             .id(path)
-            .frame(width: geo.size.width, height: geo.size.height * 1.5)
+            .frame(
+                width: geo.size.width,
+                height: geo.size.height * 1.5
+            )
             .clipped()
             .blur(radius: 10)
             .overlay(
                 LinearGradient(
-                    colors: [.black.opacity(0), .black.opacity(1)],
+                    colors: [
+                        .black.opacity(0),
+                        .black.opacity(1)
+                    ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-            .frame(maxWidth: .infinity, alignment: .top)
-            .animation(.easeInOut(duration: 0.3), value: path)
+            .frame(
+                maxWidth: .infinity,
+                alignment: .top
+            )
+            .animation(
+                .easeInOut(duration: 0.3),
+                value: path
+            )
         }
-        .ignoresSafeArea(edges: .all)
+        .ignoresSafeArea()
     }
-    
+
     private func buildFeedOrder() {
-        let preferredGenres = Set(viewerRef?.preferredGenres ?? [])
+        let preferredGenres = Set(
+            viewerRef?.preferredGenres ?? []
+        )
 
         let base = dataStore.arcs.filter {
-            $0.contentType == type && $0.userID != viewerRef?.id
+            $0.contentType == type &&
+            $0.userID != viewerRef?.id
         }
 
         let matching = preferredGenres.isEmpty
             ? []
-            : base.filter { !Set($0.themes).isDisjoint(with: preferredGenres) }
+            : base.filter {
+                !Set($0.themes).isDisjoint(with: preferredGenres)
+            }
 
         let matchingIDs = Set(matching.map(\.id))
-        let rest = base.filter { !matchingIDs.contains($0.id) }
 
-        feedOrder = (matching.shuffled() + rest.shuffled()).map(\.id)
+        let rest = base.filter {
+            !matchingIDs.contains($0.id)
+        }
+
+        feedOrder = (
+            matching.shuffled() +
+            rest.shuffled()
+        ).map(\.id)
     }
-    
+
     private func filteredArcs(for mode: ScrollMode) -> [ArcModel] {
         switch mode {
-            
         case .feed:
             let base = dataStore.arcs.filter {
-                $0.contentType == type && $0.userID != viewerRef?.id
+                $0.contentType == type &&
+                $0.userID != viewerRef?.id
             }
-            let baseByID = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
 
-            var result = feedOrder.compactMap { baseByID[$0] }
+            let baseByID = Dictionary(
+                uniqueKeysWithValues: base.map {
+                    ($0.id, $0)
+                }
+            )
+
+            var result = feedOrder.compactMap {
+                baseByID[$0]
+            }
 
             let knownIDs = Set(feedOrder)
-            let newArcs = base.filter { !knownIDs.contains($0.id) }
-            if !newArcs.isEmpty {
-                result.append(contentsOf: newArcs)
+
+            let newArcs = base.filter {
+                !knownIDs.contains($0.id)
             }
 
+            result.append(contentsOf: newArcs)
+
             return result
-            
+
         case .focused(let contentID):
             return dataStore.arcs.filter {
                 $0.contentID == contentID
             }
-        
-        case .profile(
-            let userID,
-            let contentType,
-            _
-        ):
 
+        case .profile(let userID, let contentType, _):
             return dataStore.arcs.filter {
-
                 $0.userID == userID &&
                 $0.contentType == contentType
             }
         }
-        
     }
 }
-
-#Preview {
-}
+ 
