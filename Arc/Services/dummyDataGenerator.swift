@@ -53,15 +53,6 @@ enum DummyDataGenerator {
             94605, // Arcane
             84958, // Loki
             94997, // House of the Dragon
-            100088, // The Last of Us
-            60625, // Rick and Morty
-            52814, // One Punch Man
-            62715, // Dragon Ball Super
-            95557, // Invincible
-            1398, // The Sopranos
-            1397, // The Walking Dead
-            37854, // One Piece
-            95403 // The Bear
         ]
 
         // Arcs
