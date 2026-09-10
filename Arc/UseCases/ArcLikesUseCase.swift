@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ArcLikesUseCase {
+struct ArcLikesUseCase {
 
     func execute(
         arcID: UUID,

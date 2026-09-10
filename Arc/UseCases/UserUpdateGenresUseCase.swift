@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class UserUpdatesGenresUseCase {
+struct UserUpdatesGenresUseCase {
 
     func execute(
         userID: UUID,

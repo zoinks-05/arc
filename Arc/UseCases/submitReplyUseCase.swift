@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class SubmitReplyUseCase {
+struct SubmitReplyUseCase {
 
     func execute(
         content: String,

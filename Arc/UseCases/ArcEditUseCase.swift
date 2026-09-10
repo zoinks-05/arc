@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ArcEditUseCase {
+struct ArcEditUseCase {
 
     func execute(
         arcID: UUID,

@@ -39,9 +39,13 @@ struct RecommendationsComponent: View {
                     .tint(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 20)
-            } else {
+            }  else {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 100), spacing: 10)],
+                    columns: [
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10)
+                    ],
                     spacing: 10
                 ) {
                     ForEach(availableGenres, id: \.self) { genre in
@@ -50,8 +54,8 @@ struct RecommendationsComponent: View {
                         Text(genre)
                             .font(.subheadline)
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 15)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
                             .glassEffect(
                                 isSelected ? .regular.tint(.white) : .regular,
                                 in: RoundedRectangle(cornerRadius: 8)

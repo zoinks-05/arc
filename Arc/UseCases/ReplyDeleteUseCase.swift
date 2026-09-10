@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ReplyDeleteUseCase {
+struct ReplyDeleteUseCase {
 
     func execute(
         replyID: UUID,

@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ArcRepostUseCase {
+struct ArcRepostUseCase {
 
     func execute(
         arcID: UUID,

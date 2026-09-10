@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class CommentEditUseCase {
+struct CommentEditUseCase {
 
     func execute(
         commentID: UUID,

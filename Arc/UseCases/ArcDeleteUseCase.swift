@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ArcDeleteUseCase {
+struct ArcDeleteUseCase {
 
     func execute(
         arcID: UUID,

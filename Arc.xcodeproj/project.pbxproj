@@ -30,19 +30,35 @@
 		1EF3A35C3051384E00A1D3B1 /* Arc.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Arc.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1E0B7A443052DF4D006ECAD2 /* Exceptions for "ArcTests" folder in "ArcTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ArcUITests.swift,
+			);
+			target = 1EF3A3523051374E00A1D3B1 /* ArcTests */;
+		};
+		1E0B7A453052DF4D006ECAD2 /* Exceptions for "ArcTests" folder in "ArcUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ArcUITests.swift,
+			);
+			target = 1EAE82023051463A003A3941 /* ArcUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1E5AB2D3303ACFB600E625B7 /* Arc */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Arc;
 			sourceTree = "<group>";
 		};
-		1EAE82043051463A003A3941 /* ArcUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ArcUITests;
-			sourceTree = "<group>";
-		};
 		1EF3A3543051374E00A1D3B1 /* ArcTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1E0B7A443052DF4D006ECAD2 /* Exceptions for "ArcTests" folder in "ArcTests" target */,
+				1E0B7A453052DF4D006ECAD2 /* Exceptions for "ArcTests" folder in "ArcUITests" target */,
+			);
 			path = ArcTests;
 			sourceTree = "<group>";
 		};
@@ -79,7 +95,6 @@
 				1EF3A35C3051384E00A1D3B1 /* Arc.xctestplan */,
 				1E5AB2D3303ACFB600E625B7 /* Arc */,
 				1EF3A3543051374E00A1D3B1 /* ArcTests */,
-				1EAE82043051463A003A3941 /* ArcUITests */,
 				1E5AB2D2303ACFB600E625B7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -131,9 +146,6 @@
 			);
 			dependencies = (
 				1EAE820A3051463A003A3941 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				1EAE82043051463A003A3941 /* ArcUITests */,
 			);
 			name = ArcUITests;
 			packageProductDependencies = (

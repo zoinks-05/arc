@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ReplyEditUseCase {
+struct ReplyEditUseCase {
 
     func execute(
         replyID: UUID,

@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ReplyLikesUseCase {
+struct ReplyLikesUseCase {
 
     func execute(
         replyID: UUID,

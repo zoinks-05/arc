@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class CreateArcUseCase {
+struct CreateArcUseCase {
 
     func execute(
         reflection: String,

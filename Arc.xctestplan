@@ -24,6 +24,13 @@
         "identifier" : "1EF3A3523051374E00A1D3B1",
         "name" : "ArcTests"
       }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Arc.xcodeproj",
+        "identifier" : "1EAE82023051463A003A3941",
+        "name" : "ArcUITests"
+      }
     }
   ],
   "version" : 1

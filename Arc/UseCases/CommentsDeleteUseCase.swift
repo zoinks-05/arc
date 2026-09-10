@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class CommentDeleteUseCase {
+struct CommentDeleteUseCase {
 
     func execute(
         commentID: UUID,
