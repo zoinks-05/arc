@@ -2,6 +2,20 @@
 
 Arc is a short-form movie and TV reflection app built with SwiftUI. Users can discover movies and TV shows, create personal reflections, rate content, select genres of interest, and interact with other users through likes, comments, replies, and reposts.
 
+## Assignment Scope
+
+Arc was developed as a university solution engineering project. The current implementation focuses on demonstrating:
+
+- MVVM architecture
+- Use Case driven business logic
+- Domain-specific validation
+- Human-system interaction
+- API integration
+- Local persistence
+- Automated testing
+
+A production version could replace the local JSON storage with a proper backend or CloudKit, and introduce more advanced, personalised recommendation functionality.
+
 ## Features
 
 - Search for movies and TV shows using TMDB
@@ -153,18 +167,5 @@ Movie and TV metadata is provided by [TMDB](https://www.themoviedb.org/). Arc us
 
 Search and recommendation requests use TMDB's adult-content filtering where supported.
 
-## Assignment Scope
-
-Arc was developed as a university solution engineering project. The current implementation focuses on demonstrating:
-
-- MVVM architecture
-- Use Case driven business logic
-- Domain-specific validation
-- Human-system interaction
-- API integration
-- Local persistence
-- Automated testing
-
-A production version could replace the local JSON storage with a proper backend or CloudKit, and introduce more advanced, personalised recommendation functionality.
 
 
